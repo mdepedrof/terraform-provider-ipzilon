@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -16,13 +17,34 @@ type Client struct {
 }
 
 func New(baseURL, token string) *Client {
+	base := strings.TrimRight(baseURL, "/")
 	return &Client{
-		BaseURL: baseURL,
-		Token:   token,
-		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		BaseURL:    resolveAPIBase(base),
+		Token:      token,
+		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// resolveAPIBase probes /api/health then /health to find where the API is mounted.
+// Handles production deployments (nginx strips /api/ prefix) and local dev (API at root).
+// Falls back to /api if neither probe responds within 5 s.
+func resolveAPIBase(base string) string {
+	probe := &http.Client{Timeout: 5 * time.Second}
+	for _, candidate := range []string{base + "/api", base} {
+		req, err := http.NewRequest("GET", candidate+"/health", nil)
+		if err != nil {
+			continue
+		}
+		resp, err := probe.Do(req)
+		if err != nil {
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode == 200 {
+			return candidate
+		}
+	}
+	return base + "/api"
 }
 
 type APIError struct {
