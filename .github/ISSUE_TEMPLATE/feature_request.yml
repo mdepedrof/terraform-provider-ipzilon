@@ -1,0 +1,29 @@
+name: Feature Request
+description: Suggest a new resource, data source, or provider capability
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a feature request, please check if there is already an open issue or PR for this.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do that the provider currently doesn't support?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? Include example HCL if applicable.
+      render: hcl
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you've tried or alternative approaches.

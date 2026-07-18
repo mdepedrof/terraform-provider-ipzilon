@@ -1,0 +1,56 @@
+name: Bug Report
+description: Report a bug in the provider
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Please fill in as much detail as possible.
+        If this is a security vulnerability, **do not open an issue** — see [SECURITY.md](../SECURITY.md) instead.
+
+  - type: input
+    id: provider_version
+    attributes:
+      label: Provider version
+      placeholder: "e.g. 1.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: terraform_version
+    attributes:
+      label: Terraform version
+      placeholder: "e.g. 1.9.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Terraform configuration
+      description: Minimal `.tf` snippet that reproduces the issue. Remove any sensitive values.
+      render: hcl
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full error message or `terraform plan/apply` output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug output (optional)
+      description: Output of `TF_LOG=DEBUG terraform apply` with sensitive data redacted.
+      render: shell

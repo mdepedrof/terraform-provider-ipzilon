@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/mdepedrof/terraform-provider-ipzilon/security/advisories/new
+    about: Report a security vulnerability privately
+  - name: IPzilon API issues
+    url: https://github.com/mdepedrof/ipzilon/issues
+    about: Issues with the IPzilon API server itself (not the provider)
