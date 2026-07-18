@@ -42,8 +42,13 @@ func (r *NetworkResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					int64planmodifier.UseStateForUnknown(),
 				},
 			},
-			// landing_zone_id can be updated (PATCH allows reassignment within same hub)
-			"landing_zone_id": schema.Int64Attribute{Required: true, Description: "Landing zone this network belongs to. Can be updated to reassign within the same hub."},
+			"landing_zone_id": schema.Int64Attribute{
+				Required:    true,
+				Description: "Landing zone this network belongs to.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
+			},
 			"name":            schema.StringAttribute{Required: true, Description: "Resource name (must be lowercase — the server normalizes all strings)."},
 			"cidr":            schema.StringAttribute{Required: true, Description: "Network CIDR (e.g. 10.0.1.0/24)."},
 			"description":     schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
