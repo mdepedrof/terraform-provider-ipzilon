@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Go 1.24+
+- Go 1.25+
 - Terraform CLI 1.x
 - A running IPzilon API (see [ipzilon repo](https://github.com/mdepedrof/ipzilon))
 

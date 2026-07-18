@@ -7,7 +7,7 @@ variable "ipzilon_token" {
 variable "ipzilon_api_url" {
   description = "IPzilon API base URL."
   type        = string
-  default     = "http://localhost:8000"
+  default     = "https://ipzilon.example.com"
 }
 
 variable "site_id" {

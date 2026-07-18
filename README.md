@@ -38,7 +38,7 @@ terraform {
 }
 
 provider "ipzilon" {
-  api_url = "https://ipam.example.com"   # or env: IPZILON_API_URL
+  api_url = "https://ipzilon.example.com"  # or env: IPZILON_API_URL
   token   = var.ipzilon_token            # or env: IPZILON_TOKEN
 }
 ```

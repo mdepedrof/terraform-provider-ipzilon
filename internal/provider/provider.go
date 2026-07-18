@@ -35,10 +35,11 @@ func (p *IPzilon) Metadata(_ context.Context, _ provider.MetadataRequest, resp *
 
 func (p *IPzilon) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "Manage IP address space in IPzilon — an IPAM for Azure and on-premise networks. Supports sites, hubs, landing zones, networks, subnets, and individual IP addresses.",
 		Attributes: map[string]schema.Attribute{
 			"api_url": schema.StringAttribute{
 				Optional:    true,
-				Description: "IPzilon API base URL. Env: IPZILON_API_URL. Default: http://localhost:8000.",
+				Description: "IPzilon API base URL (e.g. https://ipzilon.example.com). Can be set via IPZILON_API_URL environment variable.",
 			},
 			"token": schema.StringAttribute{
 				Optional:    true,
