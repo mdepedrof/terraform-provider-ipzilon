@@ -38,11 +38,11 @@ var ipAddrItemSchema = schema.NestedAttributeObject{
 	Attributes: map[string]schema.Attribute{
 		"id":               schema.Int64Attribute{Computed: true},
 		"subnet_id":        schema.Int64Attribute{Computed: true},
-		"address":          schema.StringAttribute{Computed: true},
-		"status":           schema.StringAttribute{Computed: true},
-		"is_azure_reserved": schema.BoolAttribute{Computed: true},
-		"hostname":         schema.StringAttribute{Computed: true},
-		"description":      schema.StringAttribute{Computed: true},
+		"address":           schema.StringAttribute{Computed: true, Description: "IP address."},
+		"status":            schema.StringAttribute{Computed: true, Description: "IP status: available, used, or reserved."},
+		"is_azure_reserved": schema.BoolAttribute{Computed: true, Description: "True for IPs auto-reserved by Azure (.1/.2/.3/broadcast)."},
+		"hostname":          schema.StringAttribute{Computed: true, Description: "Hostname — semantic name for the address."},
+		"description":       schema.StringAttribute{Computed: true, Description: "Free-text description."},
 	},
 }
 

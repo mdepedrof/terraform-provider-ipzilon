@@ -36,10 +36,10 @@ var hubItemSchema = schema.NestedAttributeObject{
 	Attributes: map[string]schema.Attribute{
 		"id":            schema.Int64Attribute{Computed: true},
 		"site_id":       schema.Int64Attribute{Computed: true},
-		"name":          schema.StringAttribute{Computed: true},
-		"address_space": schema.StringAttribute{Computed: true},
-		"location":      schema.StringAttribute{Computed: true},
-		"description":   schema.StringAttribute{Computed: true},
+		"name":          schema.StringAttribute{Computed: true, Description: "Hub name."},
+		"address_space": schema.StringAttribute{Computed: true, Description: "Hub address space CIDR."},
+		"location":      schema.StringAttribute{Computed: true, Description: "Free-text location label."},
+		"description":   schema.StringAttribute{Computed: true, Description: "Free-text description."},
 	},
 }
 

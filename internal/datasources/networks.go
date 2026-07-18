@@ -36,9 +36,9 @@ var networkItemSchema = schema.NestedAttributeObject{
 	Attributes: map[string]schema.Attribute{
 		"id":              schema.Int64Attribute{Computed: true},
 		"landing_zone_id": schema.Int64Attribute{Computed: true},
-		"name":            schema.StringAttribute{Computed: true},
-		"cidr":            schema.StringAttribute{Computed: true},
-		"description":     schema.StringAttribute{Computed: true},
+		"name":            schema.StringAttribute{Computed: true, Description: "Network name."},
+		"cidr":            schema.StringAttribute{Computed: true, Description: "Network CIDR block."},
+		"description":     schema.StringAttribute{Computed: true, Description: "Free-text description."},
 	},
 }
 

@@ -1,0 +1,61 @@
+# Runs on every PR and push to main: build, test, lint, docs check.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go build
+        run: go build ./...
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+        timeout-minutes: 5
+
+  docs:
+    name: Docs up-to-date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install tfplugindocs
+        run: go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
+
+      - name: Generate docs
+        run: tfplugindocs generate --provider-name ipzilon
+
+      - name: Check for uncommitted docs changes
+        run: |
+          if ! git diff --quiet docs/; then
+            echo "docs/ is out of date — run 'make generate' and commit the result"
+            git diff docs/
+            exit 1
+          fi

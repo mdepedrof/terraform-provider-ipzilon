@@ -1,0 +1,52 @@
+# Publishes a signed release to GitHub and notifies the Terraform Registry.
+# Triggers on version tags: v1.0.0, v1.2.3, etc.
+#
+# Required secrets (Settings → Secrets → Actions):
+#   GPG_PRIVATE_KEY  — ASCII-armored GPG private key (gpg --armor --export-secret-keys <ID>)
+#   PASSPHRASE       — passphrase for the GPG key (leave value empty if key has none)
+#
+# The Terraform Registry detects new releases automatically once the provider
+# is registered at registry.terraform.io with the matching GPG public key.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"   # pre-releases: v1.0.0-rc.1
+
+permissions:
+  contents: write  # required to create GitHub releases and upload assets
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # goreleaser needs full history for changelog
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}

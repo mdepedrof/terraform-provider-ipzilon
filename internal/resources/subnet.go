@@ -49,9 +49,9 @@ func (r *SubnetResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 					int64planmodifier.RequiresReplace(),
 				},
 			},
-			"name":        schema.StringAttribute{Required: true},
+			"name":        schema.StringAttribute{Required: true, Description: "Resource name (must be lowercase — the server normalizes all strings)."},
 			"cidr":        schema.StringAttribute{Required: true, Description: "Subnet CIDR. Changing this repopulates all IP records."},
-			"description": schema.StringAttribute{Optional: true, Computed: true},
+			"description": schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
 		},
 	}
 }

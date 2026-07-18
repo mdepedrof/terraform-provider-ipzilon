@@ -35,9 +35,9 @@ var subnetItemSchema = schema.NestedAttributeObject{
 	Attributes: map[string]schema.Attribute{
 		"id":          schema.Int64Attribute{Computed: true},
 		"network_id":  schema.Int64Attribute{Computed: true},
-		"name":        schema.StringAttribute{Computed: true},
-		"cidr":        schema.StringAttribute{Computed: true},
-		"description": schema.StringAttribute{Computed: true},
+		"name":        schema.StringAttribute{Computed: true, Description: "Subnet name."},
+		"cidr":        schema.StringAttribute{Computed: true, Description: "Subnet CIDR block."},
+		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
 	},
 }
 

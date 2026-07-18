@@ -39,9 +39,9 @@ var lzItemSchema = schema.NestedAttributeObject{
 		"id":          schema.Int64Attribute{Computed: true},
 		"hub_id":      schema.Int64Attribute{Computed: true},
 		"parent_id":   schema.Int64Attribute{Computed: true},
-		"name":        schema.StringAttribute{Computed: true},
-		"cidr":        schema.StringAttribute{Computed: true},
-		"description": schema.StringAttribute{Computed: true},
+		"name":        schema.StringAttribute{Computed: true, Description: "Landing zone name."},
+		"cidr":        schema.StringAttribute{Computed: true, Description: "CIDR block assigned to this landing zone."},
+		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
 	},
 }
 

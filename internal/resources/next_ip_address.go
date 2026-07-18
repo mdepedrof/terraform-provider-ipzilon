@@ -22,11 +22,13 @@ type NextIPAddressResource struct{ client *client.Client }
 func NewNextIPAddressResource() resource.Resource { return &NextIPAddressResource{} }
 
 type nextIPAddressModel struct {
-	ID          types.Int64  `tfsdk:"id"`
-	SubnetID    types.Int64  `tfsdk:"subnet_id"`
-	Hostname    types.String `tfsdk:"hostname"`
-	Description types.String `tfsdk:"description"`
-	Address     types.String `tfsdk:"address"`
+	ID              types.Int64  `tfsdk:"id"`
+	SubnetID        types.Int64  `tfsdk:"subnet_id"`
+	Hostname        types.String `tfsdk:"hostname"`
+	Description     types.String `tfsdk:"description"`
+	Address         types.String `tfsdk:"address"`
+	Status          types.String `tfsdk:"status"`
+	IsAzureReserved types.Bool   `tfsdk:"is_azure_reserved"`
 }
 
 func (r *NextIPAddressResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -50,14 +52,22 @@ func (r *NextIPAddressResource) Schema(_ context.Context, _ resource.SchemaReque
 					int64planmodifier.RequiresReplace(),
 				},
 			},
-			"hostname":    schema.StringAttribute{Optional: true, Computed: true},
-			"description": schema.StringAttribute{Optional: true, Computed: true},
+			"hostname":    schema.StringAttribute{Optional: true, Computed: true, Description: "Hostname for this IP — use as the semantic name for the address."},
+			"description": schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
 			"address": schema.StringAttribute{
 				Computed:    true,
 				Description: "Reserved IP address (computed by server).",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+			},
+			"status": schema.StringAttribute{
+				Computed:    true,
+				Description: "IP status after reservation (always 'used').",
+			},
+			"is_azure_reserved": schema.BoolAttribute{
+				Computed:    true,
+				Description: "True for IPs automatically reserved by Azure (.1 gateway, .2/.3 DNS, broadcast).",
 			},
 		},
 	}
@@ -99,11 +109,13 @@ func (r *NextIPAddressResource) Create(ctx context.Context, req resource.CreateR
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, nextIPAddressModel{
-		ID:          types.Int64Value(ip.ID),
-		SubnetID:    types.Int64Value(ip.SubnetID),
-		Hostname:    types.StringPointerValue(ip.Hostname),
-		Description: types.StringPointerValue(ip.Description),
-		Address:     types.StringValue(ip.Address),
+		ID:              types.Int64Value(ip.ID),
+		SubnetID:        types.Int64Value(ip.SubnetID),
+		Hostname:        types.StringPointerValue(ip.Hostname),
+		Description:     types.StringPointerValue(ip.Description),
+		Address:         types.StringValue(ip.Address),
+		Status:          types.StringValue(ip.Status),
+		IsAzureReserved: types.BoolValue(ip.IsAzureReserved),
 	})...)
 }
 
@@ -125,6 +137,8 @@ func (r *NextIPAddressResource) Read(ctx context.Context, req resource.ReadReque
 	state.Hostname = types.StringPointerValue(ip.Hostname)
 	state.Description = types.StringPointerValue(ip.Description)
 	state.Address = types.StringValue(ip.Address)
+	state.Status = types.StringValue(ip.Status)
+	state.IsAzureReserved = types.BoolValue(ip.IsAzureReserved)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -146,6 +160,8 @@ func (r *NextIPAddressResource) Update(ctx context.Context, req resource.UpdateR
 	}
 	state.Hostname = types.StringPointerValue(ip.Hostname)
 	state.Description = types.StringPointerValue(ip.Description)
+	state.Status = types.StringValue(ip.Status)
+	state.IsAzureReserved = types.BoolValue(ip.IsAzureReserved)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 

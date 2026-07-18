@@ -22,12 +22,13 @@ type IPAddressResource struct{ client *client.Client }
 func NewIPAddressResource() resource.Resource { return &IPAddressResource{} }
 
 type ipAddressModel struct {
-	ID          types.Int64  `tfsdk:"id"`
-	SubnetID    types.Int64  `tfsdk:"subnet_id"`
-	Address     types.String `tfsdk:"address"`
-	Status      types.String `tfsdk:"status"`
-	Hostname    types.String `tfsdk:"hostname"`
-	Description types.String `tfsdk:"description"`
+	ID              types.Int64  `tfsdk:"id"`
+	SubnetID        types.Int64  `tfsdk:"subnet_id"`
+	Address         types.String `tfsdk:"address"`
+	Status          types.String `tfsdk:"status"`
+	IsAzureReserved types.Bool   `tfsdk:"is_azure_reserved"`
+	Hostname        types.String `tfsdk:"hostname"`
+	Description     types.String `tfsdk:"description"`
 }
 
 func (r *IPAddressResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -54,17 +55,19 @@ func (r *IPAddressResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"address": schema.StringAttribute{
 				Required:    true,
 				Description: "IP address to manage (e.g. 10.0.1.5). Must exist in the subnet and be available.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"status": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
 				Description: "IP status: available, used, reserved. Defaults to 'used' on create.",
 			},
-			"hostname":    schema.StringAttribute{Optional: true, Computed: true},
-			"description": schema.StringAttribute{Optional: true, Computed: true},
+			"is_azure_reserved": schema.BoolAttribute{
+				Computed:    true,
+				Description: "True for IPs automatically reserved by Azure (.1 gateway, .2/.3 DNS, broadcast).",
+			},
+			"hostname":    schema.StringAttribute{Optional: true, Computed: true, Description: "Hostname for this IP — use as the semantic name for the address."},
+			"description": schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
 		},
 	}
 }
@@ -83,12 +86,13 @@ func (r *IPAddressResource) Configure(_ context.Context, req resource.ConfigureR
 
 func ipFromAPI(ip client.IPAddress) ipAddressModel {
 	return ipAddressModel{
-		ID:          types.Int64Value(ip.ID),
-		SubnetID:    types.Int64Value(ip.SubnetID),
-		Address:     types.StringValue(ip.Address),
-		Status:      types.StringValue(ip.Status),
-		Hostname:    types.StringPointerValue(ip.Hostname),
-		Description: types.StringPointerValue(ip.Description),
+		ID:              types.Int64Value(ip.ID),
+		SubnetID:        types.Int64Value(ip.SubnetID),
+		Address:         types.StringValue(ip.Address),
+		Status:          types.StringValue(ip.Status),
+		IsAzureReserved: types.BoolValue(ip.IsAzureReserved),
+		Hostname:        types.StringPointerValue(ip.Hostname),
+		Description:     types.StringPointerValue(ip.Description),
 	}
 }
 

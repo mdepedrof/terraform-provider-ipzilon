@@ -51,10 +51,10 @@ func (r *HubResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 					int64planmodifier.RequiresReplace(),
 				},
 			},
-			"name":          schema.StringAttribute{Required: true},
+			"name":          schema.StringAttribute{Required: true, Description: "Resource name (must be lowercase — the server normalizes all strings)."},
 			"address_space": schema.StringAttribute{Optional: true, Computed: true, Description: "Hub address space CIDR (e.g. 10.0.0.0/16)."},
-			"location":      schema.StringAttribute{Optional: true, Computed: true},
-			"description":   schema.StringAttribute{Optional: true, Computed: true},
+			"location":      schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text location label (e.g. West Europe)."},
+			"description":   schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
 		},
 	}
 }
