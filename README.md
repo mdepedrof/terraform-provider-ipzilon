@@ -31,7 +31,7 @@ Manage IP address space in [IPzilon](https://github.com/mdepedrof/ipzilon) — a
 terraform {
   required_providers {
     ipzilon = {
-      source  = "registry.terraform.io/ipzilon/ipzilon"
+      source  = "registry.terraform.io/mdepedrof/ipzilon"
       version = "~> 1.0"
     }
   }
@@ -85,7 +85,7 @@ A full example with all resources and data sources is in [`examples/terraform/`]
 
 ## Documentation
 
-Full attribute reference and import syntax: [registry.terraform.io/providers/ipzilon/ipzilon](https://registry.terraform.io/providers/ipzilon/ipzilon/latest/docs)
+Full attribute reference and import syntax: [registry.terraform.io/providers/mdepedrof/ipzilon](https://registry.terraform.io/providers/mdepedrof/ipzilon/latest/docs)
 
 ## Development
 
@@ -94,7 +94,7 @@ Full attribute reference and import syntax: [registry.terraform.io/providers/ipz
 make install
 
 # Configure Terraform to use the local binary (~/.terraformrc)
-# provider_installation { dev_overrides { "registry.terraform.io/ipzilon/ipzilon" = "/path/to/go/bin" } direct {} }
+# provider_installation { dev_overrides { "registry.terraform.io/mdepedrof/ipzilon" = "/path/to/go/bin" } direct {} }
 
 make test        # unit tests
 make testacc     # acceptance tests (requires a live API)

@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     ipzilon = {
-      source = "registry.terraform.io/ipzilon/ipzilon"
+      source = "registry.terraform.io/mdepedrof/ipzilon"
     }
   }
 }

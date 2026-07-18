@@ -25,7 +25,7 @@ Then configure `~/.terraformrc` to use the local binary:
 ```hcl
 provider_installation {
   dev_overrides {
-    "registry.terraform.io/ipzilon/ipzilon" = "/path/to/go/bin"
+    "registry.terraform.io/mdepedrof/ipzilon" = "/path/to/go/bin"
   }
   direct {}
 }
