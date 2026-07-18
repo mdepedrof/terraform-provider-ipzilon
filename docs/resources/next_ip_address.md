@@ -39,13 +39,13 @@ resource "ipzilon_next_ip_address" "app_vm" {
 
 - `description` (String) Free-text description.
 - `hostname` (String) Hostname for this IP — use as the semantic name for the address.
+- `status` (String) IP status. Defaults to 'reserved' after allocation. Valid values: available, reserved, used.
 
 ### Read-Only
 
 - `address` (String) Reserved IP address (computed by server).
 - `id` (Number) The ID of this resource.
 - `is_azure_reserved` (Boolean) True for IPs automatically reserved by Azure (.1 gateway, .2/.3 DNS, broadcast).
-- `status` (String) IP status after reservation (always 'used').
 
 ## Import
 

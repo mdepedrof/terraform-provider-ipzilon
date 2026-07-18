@@ -62,8 +62,9 @@ func (r *NextIPAddressResource) Schema(_ context.Context, _ resource.SchemaReque
 				},
 			},
 			"status": schema.StringAttribute{
+				Optional:    true,
 				Computed:    true,
-				Description: "IP status after reservation (always 'used').",
+				Description: "IP status. Defaults to 'reserved' after allocation. Valid values: available, reserved, used.",
 			},
 			"is_azure_reserved": schema.BoolAttribute{
 				Computed:    true,
@@ -97,11 +98,12 @@ func (r *NextIPAddressResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	// Apply hostname/description if provided
-	if !plan.Hostname.IsNull() || !plan.Description.IsNull() {
+	// Apply hostname/description/status if provided
+	if !plan.Hostname.IsNull() || !plan.Description.IsNull() || !plan.Status.IsNull() {
 		if err := r.client.Patch(fmt.Sprintf("/ips/%d", ip.ID), client.IPAddressUpdate{
 			Hostname:    strPtr(plan.Hostname),
 			Description: strPtr(plan.Description),
+			Status:      strPtr(plan.Status),
 		}, &ip); err != nil {
 			resp.Diagnostics.AddError("Set IP metadata failed", err.Error())
 			return
@@ -154,6 +156,7 @@ func (r *NextIPAddressResource) Update(ctx context.Context, req resource.UpdateR
 	if err := r.client.Patch(fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), client.IPAddressUpdate{
 		Hostname:    strPtr(plan.Hostname),
 		Description: strPtr(plan.Description),
+		Status:      strPtr(plan.Status),
 	}, &ip); err != nil {
 		resp.Diagnostics.AddError("Update IP failed", err.Error())
 		return
