@@ -2,7 +2,7 @@ terraform {
   required_providers {
     ipzilon = {
       source  = "registry.terraform.io/mdepedrof/ipzilon"
-      version = "~> 1.0"
+      version = "~> 2.0"
     }
   }
 }
