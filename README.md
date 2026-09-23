@@ -7,8 +7,8 @@ Manage IP address space in [IPzilon](https://github.com/mdepedrof/ipzilon) — a
 | Resource | Description |
 |---|---|
 | `ipzilon_hub` | Hub VNet inside a site |
-| `ipzilon_landing_zone` | Landing zone inside a hub (supports parent/child hierarchy) |
-| `ipzilon_network` | VNet/spoke CIDR inside a landing zone |
+| `ipzilon_scope` | Scope (landing zone or project) inside a hub — supports parent/child hierarchy up to 4 levels |
+| `ipzilon_network` | VNet/spoke CIDR inside a scope |
 | `ipzilon_subnet` | Subnet with explicit CIDR |
 | `ipzilon_next_subnet` | Atomically reserves the **first** free block of a given prefix |
 | `ipzilon_last_subnet` | Atomically reserves the **last** free block of a given prefix |
@@ -17,7 +17,7 @@ Manage IP address space in [IPzilon](https://github.com/mdepedrof/ipzilon) — a
 
 ## Data Sources
 
-`ipzilon_hubs` · `ipzilon_landing_zones` · `ipzilon_networks` · `ipzilon_subnets` · `ipzilon_ip_addresses`
+`ipzilon_hubs` · `ipzilon_scopes` · `ipzilon_networks` · `ipzilon_subnets` · `ipzilon_ip_addresses`
 
 ## Requirements
 
@@ -32,7 +32,7 @@ terraform {
   required_providers {
     ipzilon = {
       source  = "registry.terraform.io/mdepedrof/ipzilon"
-      version = "~> 1.0"
+      version = "~> 2.0"
     }
   }
 }
@@ -52,15 +52,16 @@ resource "ipzilon_hub" "prod" {
   address_space = "10.0.0.0/16"
 }
 
-resource "ipzilon_landing_zone" "app" {
+resource "ipzilon_scope" "app" {
   hub_id = ipzilon_hub.prod.id
   name   = "app-tier"
+  kind   = "landing_zone"
 }
 
 resource "ipzilon_network" "spoke" {
-  landing_zone_id = ipzilon_landing_zone.app.id
-  name            = "spoke-app"
-  cidr            = "10.0.1.0/24"
+  scope_id = ipzilon_scope.app.id
+  name     = "spoke-app"
+  cidr     = "10.0.1.0/24"
 }
 
 # Reserve the first available /27
@@ -82,6 +83,58 @@ output "vm_ip" {
 ```
 
 A full example with all resources and data sources is in [`examples/terraform/`](examples/terraform/).
+
+## Breaking Changes (v2.0.0)
+
+Version 2.0.0 follows a backend rename: the "landing zone" container concept
+is now called **scope**, and scopes support a `kind` of `landing_zone` or
+`project`, nestable up to 4 levels (previously 2).
+
+### 1. `ipzilon_landing_zone` → `ipzilon_scope`
+
+The resource type was renamed. Existing state must be moved manually:
+
+```bash
+terraform state mv 'ipzilon_landing_zone.app' 'ipzilon_scope.app'
+```
+
+Repeat for every `ipzilon_landing_zone` instance in your state, then update
+your `.tf` files to use `resource "ipzilon_scope" "app" { ... }`.
+
+### 2. `kind` is now required on `ipzilon_scope`
+
+Every `ipzilon_scope` block must set `kind = "landing_zone"` or
+`kind = "project"` explicitly — there is no provider-side default, even
+though the API defaults to `landing_zone`. Add `kind` to all existing
+configurations before running `terraform plan`.
+
+Rules enforced by the backend:
+- A root-level scope (no `parent_id`) must be `kind = "landing_zone"`.
+- A `landing_zone` cannot be nested under a `project` — once a branch enters
+  `kind = "project"`, everything nested below it must also be `project`.
+
+### 3. `ipzilon_network`: `landing_zone_id` → `scope_id`
+
+The attribute was renamed. **State is migrated automatically** — the
+provider implements Terraform's state upgrade mechanism, so existing
+`ipzilon_network` resources will transparently move from
+`landing_zone_id` to `scope_id` in state on the next plan/apply, no
+`terraform state mv` or re-import required.
+
+However, you must still **edit your `.tf` files by hand**: replace
+`landing_zone_id = ...` with `scope_id = ...` in every `ipzilon_network`
+block, or `terraform plan` will report `scope_id` as required/missing.
+
+### 4. Data sources
+
+- `ipzilon_landing_zones` → `ipzilon_scopes` (now also exposes/filters by
+  `kind`).
+- `ipzilon_networks`: filter attribute `landing_zone_id` → `scope_id`.
+
+### 5. Max nesting depth: 2 → 4
+
+Scopes can now be nested up to 4 levels deep (previously 2), subject to the
+`landing_zone`/`project` nesting rule above.
 
 ## Documentation
 
@@ -106,8 +159,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 ## Releasing
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
 The release workflow builds binaries for Linux, macOS (Apple Silicon), and Windows, signs them with GPG, and publishes a GitHub release. The Terraform Registry picks it up automatically.

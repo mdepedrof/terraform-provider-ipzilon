@@ -26,28 +26,31 @@ type HubUpdate struct {
 	Description  *string `json:"description"`
 }
 
-// LandingZone
+// Scope
 
-type LandingZone struct {
+type Scope struct {
 	ID          int64   `json:"id"`
 	HubID       int64   `json:"hub_id"`
 	ParentID    *int64  `json:"parent_id"`
 	Name        string  `json:"name"`
+	Kind        string  `json:"kind"`
 	CIDR        *string `json:"cidr"`
 	Description *string `json:"description"`
 }
 
-type LandingZoneCreate struct {
+type ScopeCreate struct {
 	HubID       int64   `json:"hub_id"`
 	ParentID    *int64  `json:"parent_id,omitempty"`
 	Name        string  `json:"name"`
+	Kind        string  `json:"kind"`
 	CIDR        *string `json:"cidr,omitempty"`
 	Description *string `json:"description,omitempty"`
 }
 
-type LandingZoneUpdate struct {
+type ScopeUpdate struct {
 	ParentID    *int64  `json:"parent_id"`
 	Name        *string `json:"name,omitempty"`
+	Kind        *string `json:"kind,omitempty"`
 	CIDR        *string `json:"cidr"`
 	Description *string `json:"description"`
 }
@@ -55,25 +58,25 @@ type LandingZoneUpdate struct {
 // Network
 
 type Network struct {
-	ID            int64   `json:"id"`
-	LandingZoneID int64   `json:"landing_zone_id"`
-	Name          string  `json:"name"`
-	CIDR          string  `json:"cidr"`
-	Description   *string `json:"description"`
+	ID          int64   `json:"id"`
+	ScopeID     int64   `json:"scope_id"`
+	Name        string  `json:"name"`
+	CIDR        string  `json:"cidr"`
+	Description *string `json:"description"`
 }
 
 type NetworkCreate struct {
-	LandingZoneID int64   `json:"landing_zone_id"`
-	Name          string  `json:"name"`
-	CIDR          string  `json:"cidr"`
-	Description   *string `json:"description,omitempty"`
+	ScopeID     int64   `json:"scope_id"`
+	Name        string  `json:"name"`
+	CIDR        string  `json:"cidr"`
+	Description *string `json:"description,omitempty"`
 }
 
 type NetworkUpdate struct {
-	LandingZoneID *int64  `json:"landing_zone_id,omitempty"`
-	Name          *string `json:"name,omitempty"`
-	CIDR          *string `json:"cidr,omitempty"`
-	Description   *string `json:"description"`
+	ScopeID     *int64  `json:"scope_id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	CIDR        *string `json:"cidr,omitempty"`
+	Description *string `json:"description"`
 }
 
 // Subnet

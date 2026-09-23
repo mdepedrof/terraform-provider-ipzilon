@@ -18,27 +18,27 @@ type NetworksDataSource struct{ client *client.Client }
 func NewNetworksDataSource() datasource.DataSource { return &NetworksDataSource{} }
 
 type networksModel struct {
-	ID            types.Int64   `tfsdk:"id"`
-	HubID         types.Int64   `tfsdk:"hub_id"`
-	LandingZoneID types.Int64   `tfsdk:"landing_zone_id"`
-	Items         []networkItem `tfsdk:"items"`
+	ID      types.Int64   `tfsdk:"id"`
+	HubID   types.Int64   `tfsdk:"hub_id"`
+	ScopeID types.Int64   `tfsdk:"scope_id"`
+	Items   []networkItem `tfsdk:"items"`
 }
 
 type networkItem struct {
-	ID            types.Int64  `tfsdk:"id"`
-	LandingZoneID types.Int64  `tfsdk:"landing_zone_id"`
-	Name          types.String `tfsdk:"name"`
-	CIDR          types.String `tfsdk:"cidr"`
-	Description   types.String `tfsdk:"description"`
+	ID          types.Int64  `tfsdk:"id"`
+	ScopeID     types.Int64  `tfsdk:"scope_id"`
+	Name        types.String `tfsdk:"name"`
+	CIDR        types.String `tfsdk:"cidr"`
+	Description types.String `tfsdk:"description"`
 }
 
 var networkItemSchema = schema.NestedAttributeObject{
 	Attributes: map[string]schema.Attribute{
-		"id":              schema.Int64Attribute{Computed: true},
-		"landing_zone_id": schema.Int64Attribute{Computed: true},
-		"name":            schema.StringAttribute{Computed: true, Description: "Network name."},
-		"cidr":            schema.StringAttribute{Computed: true, Description: "Network CIDR block."},
-		"description":     schema.StringAttribute{Computed: true, Description: "Free-text description."},
+		"id":          schema.Int64Attribute{Computed: true},
+		"scope_id":    schema.Int64Attribute{Computed: true},
+		"name":        schema.StringAttribute{Computed: true, Description: "Network name."},
+		"cidr":        schema.StringAttribute{Computed: true, Description: "Network CIDR block."},
+		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
 	},
 }
 
@@ -48,12 +48,12 @@ func (d *NetworksDataSource) Metadata(_ context.Context, req datasource.Metadata
 
 func (d *NetworksDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "List networks. Provide id (singular), hub_id, or landing_zone_id.",
+		Description: "List networks. Provide id (singular), hub_id, or scope_id.",
 		Attributes: map[string]schema.Attribute{
-			"id":              schema.Int64Attribute{Optional: true, Description: "Lookup a single network by ID."},
-			"hub_id":          schema.Int64Attribute{Optional: true, Description: "List all networks across all landing zones of a hub."},
-			"landing_zone_id": schema.Int64Attribute{Optional: true, Description: "List networks for a specific landing zone."},
-			"items":           schema.ListNestedAttribute{Computed: true, NestedObject: networkItemSchema},
+			"id":       schema.Int64Attribute{Optional: true, Description: "Lookup a single network by ID."},
+			"hub_id":   schema.Int64Attribute{Optional: true, Description: "List all networks across all scopes of a hub."},
+			"scope_id": schema.Int64Attribute{Optional: true, Description: "List networks for a specific scope."},
+			"items":    schema.ListNestedAttribute{Computed: true, NestedObject: networkItemSchema},
 		},
 	}
 }
@@ -64,11 +64,11 @@ func (d *NetworksDataSource) Configure(_ context.Context, req datasource.Configu
 
 func networkToItem(n client.Network) networkItem {
 	return networkItem{
-		ID:            types.Int64Value(n.ID),
-		LandingZoneID: types.Int64Value(n.LandingZoneID),
-		Name:          types.StringValue(n.Name),
-		CIDR:          types.StringValue(n.CIDR),
-		Description:   types.StringPointerValue(n.Description),
+		ID:          types.Int64Value(n.ID),
+		ScopeID:     types.Int64Value(n.ScopeID),
+		Name:        types.StringValue(n.Name),
+		CIDR:        types.StringValue(n.CIDR),
+		Description: types.StringPointerValue(n.Description),
 	}
 }
 
@@ -81,26 +81,26 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	hasID := !cfg.ID.IsNull() && !cfg.ID.IsUnknown()
 	hasHub := !cfg.HubID.IsNull() && !cfg.HubID.IsUnknown()
-	hasLZ := !cfg.LandingZoneID.IsNull() && !cfg.LandingZoneID.IsUnknown()
+	hasScope := !cfg.ScopeID.IsNull() && !cfg.ScopeID.IsUnknown()
 
 	parentCount := 0
 	if hasHub {
 		parentCount++
 	}
-	if hasLZ {
+	if hasScope {
 		parentCount++
 	}
 
 	if hasID && parentCount > 0 {
-		resp.Diagnostics.AddError("Conflicting filters", "Provide either id or a parent filter (hub_id/landing_zone_id), not both.")
+		resp.Diagnostics.AddError("Conflicting filters", "Provide either id or a parent filter (hub_id/scope_id), not both.")
 		return
 	}
 	if !hasID && parentCount == 0 {
-		resp.Diagnostics.AddError("Missing filter", "Provide id, hub_id, or landing_zone_id.")
+		resp.Diagnostics.AddError("Missing filter", "Provide id, hub_id, or scope_id.")
 		return
 	}
 	if parentCount > 1 {
-		resp.Diagnostics.AddError("Conflicting filters", "Provide either hub_id or landing_zone_id, not both.")
+		resp.Diagnostics.AddError("Conflicting filters", "Provide either hub_id or scope_id, not both.")
 		return
 	}
 
@@ -123,7 +123,7 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 		}
 	} else {
 		var networks []client.Network
-		if err := d.client.Get(fmt.Sprintf("/landing-zones/%d/networks", cfg.LandingZoneID.ValueInt64()), &networks); err != nil {
+		if err := d.client.Get(fmt.Sprintf("/scopes/%d/networks", cfg.ScopeID.ValueInt64()), &networks); err != nil {
 			resp.Diagnostics.AddError("List networks failed", err.Error())
 			return
 		}

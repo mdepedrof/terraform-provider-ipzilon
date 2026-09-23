@@ -1,6 +1,6 @@
-# List all networks in a landing zone
+# List all networks in a scope
 data "ipzilon_networks" "all" {
-  landing_zone_id = 1
+  scope_id = 1
 }
 
 output "network_cidrs" {
