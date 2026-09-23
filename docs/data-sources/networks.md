@@ -3,19 +3,19 @@
 page_title: "ipzilon_networks Data Source - ipzilon"
 subcategory: ""
 description: |-
-  List networks. Provide id (singular), hub_id, or landing_zone_id.
+  List networks. Provide id (singular), hub_id, or scope_id.
 ---
 
 # ipzilon_networks (Data Source)
 
-List networks. Provide id (singular), hub_id, or landing_zone_id.
+List networks. Provide id (singular), hub_id, or scope_id.
 
 ## Example Usage
 
 ```terraform
-# List all networks in a landing zone
+# List all networks in a scope
 data "ipzilon_networks" "all" {
-  landing_zone_id = 1
+  scope_id = 1
 }
 
 output "network_cidrs" {
@@ -28,9 +28,9 @@ output "network_cidrs" {
 
 ### Optional
 
-- `hub_id` (Number) List all networks across all landing zones of a hub.
+- `hub_id` (Number) List all networks across all scopes of a hub.
 - `id` (Number) Lookup a single network by ID.
-- `landing_zone_id` (Number) List networks for a specific landing zone.
+- `scope_id` (Number) List networks for a specific scope.
 
 ### Read-Only
 
@@ -44,5 +44,5 @@ Read-Only:
 - `cidr` (String) Network CIDR block.
 - `description` (String) Free-text description.
 - `id` (Number)
-- `landing_zone_id` (Number)
 - `name` (String) Network name.
+- `scope_id` (Number)

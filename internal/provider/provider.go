@@ -35,7 +35,7 @@ func (p *IPzilon) Metadata(_ context.Context, _ provider.MetadataRequest, resp *
 
 func (p *IPzilon) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manage IP address space in IPzilon — an IPAM for Azure and on-premise networks. Supports sites, hubs, landing zones, networks, subnets, and individual IP addresses.",
+		Description: "Manage IP address space in IPzilon — an IPAM for Azure and on-premise networks. Supports sites, hubs, scopes (landing zones and projects), networks, subnets, and individual IP addresses.",
 		Attributes: map[string]schema.Attribute{
 			"api_url": schema.StringAttribute{
 				Optional:    true,
@@ -83,7 +83,7 @@ func (p *IPzilon) Configure(ctx context.Context, req provider.ConfigureRequest, 
 func (p *IPzilon) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewHubResource,
-		resources.NewLandingZoneResource,
+		resources.NewScopeResource,
 		resources.NewNetworkResource,
 		resources.NewSubnetResource,
 		resources.NewNextSubnetResource,
@@ -96,7 +96,7 @@ func (p *IPzilon) Resources(_ context.Context) []func() resource.Resource {
 func (p *IPzilon) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		datasources.NewHubsDataSource,
-		datasources.NewLandingZonesDataSource,
+		datasources.NewScopesDataSource,
 		datasources.NewNetworksDataSource,
 		datasources.NewSubnetsDataSource,
 		datasources.NewIPAddressesDataSource,

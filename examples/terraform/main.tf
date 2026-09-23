@@ -18,24 +18,26 @@ resource "ipzilon_hub" "prod" {
   address_space = "10.0.0.0/16"
 }
 
-# Root landing zone
-resource "ipzilon_landing_zone" "shared" {
+# Root scope (must be kind = "landing_zone")
+resource "ipzilon_scope" "shared" {
   hub_id = ipzilon_hub.prod.id
   name   = "shared-services"
+  kind   = "landing_zone"
 }
 
-# Child landing zone
-resource "ipzilon_landing_zone" "app" {
+# Child scope
+resource "ipzilon_scope" "app" {
   hub_id    = ipzilon_hub.prod.id
-  parent_id = ipzilon_landing_zone.shared.id
+  parent_id = ipzilon_scope.shared.id
   name      = "app-tier"
+  kind      = "landing_zone"
 }
 
-# Network inside the child landing zone
+# Network inside the child scope
 resource "ipzilon_network" "spoke" {
-  landing_zone_id = ipzilon_landing_zone.app.id
-  name            = "spoke-app"
-  cidr            = "10.0.1.0/24"
+  scope_id = ipzilon_scope.app.id
+  name     = "spoke-app"
+  cidr     = "10.0.1.0/24"
 }
 
 # Subnet with explicit CIDR
@@ -81,15 +83,15 @@ data "ipzilon_hubs" "all" {
   site_id = var.site_id
 }
 
-# Root landing zones for the hub
-data "ipzilon_landing_zones" "roots" {
+# Root scopes for the hub
+data "ipzilon_scopes" "roots" {
   hub_id    = ipzilon_hub.prod.id
   root_only = true
 }
 
-# Networks in the landing zone
+# Networks in the scope
 data "ipzilon_networks" "spoke_nets" {
-  landing_zone_id = ipzilon_landing_zone.app.id
+  scope_id = ipzilon_scope.app.id
 }
 
 # All subnets in the network

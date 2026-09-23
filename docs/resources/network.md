@@ -3,21 +3,21 @@
 page_title: "ipzilon_network Resource - ipzilon"
 subcategory: ""
 description: |-
-  Manages a VNet/spoke network inside a landing zone.
+  Manages a VNet/spoke network inside a scope.
 ---
 
 # ipzilon_network (Resource)
 
-Manages a VNet/spoke network inside a landing zone.
+Manages a VNet/spoke network inside a scope.
 
 ## Example Usage
 
 ```terraform
 resource "ipzilon_network" "example" {
-  landing_zone_id = ipzilon_landing_zone.child.id
-  name            = "spoke-app"
-  cidr            = "10.0.1.0/24"
-  description     = "Application Spoke Network"
+  scope_id    = ipzilon_scope.child.id
+  name        = "spoke-app"
+  cidr        = "10.0.1.0/24"
+  description = "Application Spoke Network"
 }
 ```
 
@@ -27,8 +27,8 @@ resource "ipzilon_network" "example" {
 ### Required
 
 - `cidr` (String) Network CIDR (e.g. 10.0.1.0/24).
-- `landing_zone_id` (Number) Landing zone this network belongs to.
 - `name` (String) Resource name (must be lowercase — the server normalizes all strings).
+- `scope_id` (Number) Scope this network belongs to.
 
 ### Optional
 
