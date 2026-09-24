@@ -100,6 +100,10 @@ type SubnetUpdate struct {
 	Name        *string `json:"name,omitempty"`
 	CIDR        *string `json:"cidr,omitempty"`
 	Description *string `json:"description"`
+	// Force skips the server's confirmation prompt for a CIDR change that
+	// would delete IP records that are not "available" (used/reserved).
+	// See SubnetResource.Update: the provider always sets this to true.
+	Force bool `json:"force,omitempty"`
 }
 
 type AllocateSubnetBody struct {

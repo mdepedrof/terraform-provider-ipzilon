@@ -130,6 +130,11 @@ func (r *SubnetResource) Update(ctx context.Context, req resource.UpdateRequest,
 		Name:        &name,
 		CIDR:        &cidr,
 		Description: strPtr(plan.Description),
+		// A CIDR change here was already approved by the user via `terraform
+		// plan`/`apply` — the schema's own "cidr" description already warns
+		// it repopulates all IP records — so skip the server's interactive
+		// confirmation (which a non-interactive apply couldn't answer anyway).
+		Force: true,
 	}, &s); err != nil {
 		resp.Diagnostics.AddError("Update subnet failed", err.Error())
 		return
