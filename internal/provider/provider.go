@@ -87,6 +87,7 @@ func (p *IPzilon) Resources(_ context.Context) []func() resource.Resource {
 		resources.NewNetworkResource,
 		resources.NewSubnetResource,
 		resources.NewNextSubnetResource,
+		resources.NewNextNetworkResource,
 		resources.NewLastSubnetResource,
 		resources.NewIPAddressResource,
 		resources.NewNextIPAddressResource,

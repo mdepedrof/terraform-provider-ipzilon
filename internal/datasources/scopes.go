@@ -25,6 +25,8 @@ type scopesModel struct {
 	ParentID types.Int64  `tfsdk:"parent_id"`
 	RootOnly types.Bool   `tfsdk:"root_only"`
 	Kind     types.String `tfsdk:"kind"`
+	CIDR     types.String `tfsdk:"cidr"`
+	Name     types.String `tfsdk:"name"`
 	Items    []scopeItem  `tfsdk:"items"`
 }
 
@@ -67,6 +69,8 @@ func (d *ScopesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 				Description: "Optional client-side filter: only return items with this kind (landing_zone or project). Not supported server-side.",
 				Validators:  []validator.String{stringvalidator.OneOf("landing_zone", "project")},
 			},
+			"cidr":  schema.StringAttribute{Optional: true, Description: "Filter: exact cidr match (server-side)."},
+			"name":  schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side)."},
 			"items": schema.ListNestedAttribute{Computed: true, NestedObject: scopeItemSchema},
 		},
 	}
@@ -111,7 +115,6 @@ func (d *ScopesDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		}
 		items = []scopeItem{scopeToItem(s)}
 	} else {
-		url := fmt.Sprintf("/hubs/%d/scopes", cfg.HubID.ValueInt64())
 		hasParent := !cfg.ParentID.IsNull() && !cfg.ParentID.IsUnknown()
 		rootOnly := !cfg.RootOnly.IsNull() && cfg.RootOnly.ValueBool()
 
@@ -119,14 +122,17 @@ func (d *ScopesDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			resp.Diagnostics.AddError("Conflicting filters", "parent_id and root_only are mutually exclusive.")
 			return
 		}
-		if hasParent {
-			url += fmt.Sprintf("?parent_id=%d", cfg.ParentID.ValueInt64())
-		} else if rootOnly {
-			url += "?root_only=true"
-		}
+
+		reqURL := hubScopesURL(
+			cfg.HubID.ValueInt64(),
+			hasParent, cfg.ParentID.ValueInt64(),
+			rootOnly,
+			stringFilter(cfg.CIDR),
+			stringFilter(cfg.Name),
+		)
 
 		var scopes []client.Scope
-		if err := d.client.Get(url, &scopes); err != nil {
+		if err := d.client.Get(reqURL, &scopes); err != nil {
 			resp.Diagnostics.AddError("List scopes failed", err.Error())
 			return
 		}

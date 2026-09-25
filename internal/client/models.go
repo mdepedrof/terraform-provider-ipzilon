@@ -79,6 +79,12 @@ type NetworkUpdate struct {
 	Description *string `json:"description"`
 }
 
+type AllocateNetworkBody struct {
+	PrefixLength int64   `json:"prefix_length"`
+	Name         *string `json:"name,omitempty"`
+	Description  *string `json:"description,omitempty"`
+}
+
 // Subnet
 
 type Subnet struct {
