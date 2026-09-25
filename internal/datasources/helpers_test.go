@@ -192,3 +192,46 @@ func TestSitesURL(t *testing.T) {
 		})
 	}
 }
+func TestSiteHubsURL(t *testing.T) {
+	cases := []struct {
+		name         string
+		siteID       int64
+		addressSpace *string
+		hubName      *string
+		want         string
+	}{
+		{
+			name:   "no filters",
+			siteID: 1,
+			want:   "/sites/1/hubs",
+		},
+		{
+			name:         "address_space only",
+			siteID:       1,
+			addressSpace: strp("10.0.0.0/16"),
+			want:         "/sites/1/hubs?address_space=10.0.0.0%2F16",
+		},
+		{
+			name:    "name only",
+			siteID:  1,
+			hubName: strp("core"),
+			want:    "/sites/1/hubs?name=core",
+		},
+		{
+			name:         "address_space and name combined",
+			siteID:       2,
+			addressSpace: strp("10.1.0.0/16"),
+			hubName:      strp("edge"),
+			want:         "/sites/2/hubs?address_space=10.1.0.0%2F16&name=edge",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := siteHubsURL(tc.siteID, tc.addressSpace, tc.hubName)
+			if got != tc.want {
+				t.Errorf("siteHubsURL() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

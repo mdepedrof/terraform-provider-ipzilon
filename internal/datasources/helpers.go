@@ -80,6 +80,24 @@ func scopeNetworksURL(scopeID int64, cidr, name *string) string {
 	return reqURL
 }
 
+// siteHubsURL builds the request URL for GET /sites/{site_id}/hubs with the
+// optional server-side filters address_space/name.
+func siteHubsURL(siteID int64, addressSpace, name *string) string {
+	q := url.Values{}
+	if addressSpace != nil {
+		q.Set("address_space", *addressSpace)
+	}
+	if name != nil {
+		q.Set("name", *name)
+	}
+
+	reqURL := fmt.Sprintf("/sites/%d/hubs", siteID)
+	if encoded := q.Encode(); encoded != "" {
+		reqURL += "?" + encoded
+	}
+	return reqURL
+}
+
 // sitesURL builds the request URL for GET /sites/ with the optional
 // server-side filter name.
 func sitesURL(name *string) string {

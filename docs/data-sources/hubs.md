@@ -23,6 +23,12 @@ data "ipzilon_hubs" "single" {
   id = 1
 }
 
+# List hubs in a site filtered by address_space or name
+data "ipzilon_hubs" "filtered" {
+  site_id       = 1
+  address_space = "10.0.0.0/16"
+}
+
 output "hub_cidr" {
   value = data.ipzilon_hubs.all.items[0].address_space
 }
@@ -33,7 +39,9 @@ output "hub_cidr" {
 
 ### Optional
 
+- `address_space` (String) Filter: exact address_space (CIDR) match (server-side). Only applies when site_id is set.
 - `id` (Number) Lookup a single hub by ID.
+- `name` (String) Filter: exact name match (server-side). Only applies when site_id is set.
 - `site_id` (Number) List all hubs in a site.
 
 ### Read-Only

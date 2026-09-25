@@ -18,9 +18,11 @@ type HubsDataSource struct{ client *client.Client }
 func NewHubsDataSource() datasource.DataSource { return &HubsDataSource{} }
 
 type hubsModel struct {
-	ID     types.Int64 `tfsdk:"id"`
-	SiteID types.Int64 `tfsdk:"site_id"`
-	Items  []hubItem   `tfsdk:"items"`
+	ID           types.Int64  `tfsdk:"id"`
+	SiteID       types.Int64  `tfsdk:"site_id"`
+	AddressSpace types.String `tfsdk:"address_space"`
+	Name         types.String `tfsdk:"name"`
+	Items        []hubItem    `tfsdk:"items"`
 }
 
 type hubItem struct {
@@ -51,9 +53,11 @@ func (d *HubsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 	resp.Schema = schema.Schema{
 		Description: "List hubs. Provide id (singular lookup) OR site_id (list all hubs for a site).",
 		Attributes: map[string]schema.Attribute{
-			"id":      schema.Int64Attribute{Optional: true, Description: "Lookup a single hub by ID."},
-			"site_id": schema.Int64Attribute{Optional: true, Description: "List all hubs in a site."},
-			"items":   schema.ListNestedAttribute{Computed: true, NestedObject: hubItemSchema},
+			"id":            schema.Int64Attribute{Optional: true, Description: "Lookup a single hub by ID."},
+			"site_id":       schema.Int64Attribute{Optional: true, Description: "List all hubs in a site."},
+			"address_space": schema.StringAttribute{Optional: true, Description: "Filter: exact address_space (CIDR) match (server-side). Only applies when site_id is set."},
+			"name":          schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side). Only applies when site_id is set."},
+			"items":         schema.ListNestedAttribute{Computed: true, NestedObject: hubItemSchema},
 		},
 	}
 }
@@ -96,8 +100,10 @@ func (d *HubsDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		}
 		items = []hubItem{hubToItem(h)}
 	} else {
+		reqURL := siteHubsURL(cfg.SiteID.ValueInt64(), stringFilter(cfg.AddressSpace), stringFilter(cfg.Name))
+
 		var hubs []client.Hub
-		if err := d.client.Get(fmt.Sprintf("/sites/%d/hubs", cfg.SiteID.ValueInt64()), &hubs); err != nil {
+		if err := d.client.Get(reqURL, &hubs); err != nil {
 			resp.Diagnostics.AddError("List hubs failed", err.Error())
 			return
 		}
