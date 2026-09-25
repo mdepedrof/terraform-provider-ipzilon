@@ -117,6 +117,50 @@ func TestScopeNetworksURL(t *testing.T) {
 	}
 }
 
+func TestHubNetworksURL(t *testing.T) {
+	cases := []struct {
+		name        string
+		hubID       int64
+		cidr        *string
+		networkName *string
+		want        string
+	}{
+		{
+			name:  "no filters",
+			hubID: 5,
+			want:  "/hubs/5/networks",
+		},
+		{
+			name:  "cidr only",
+			hubID: 5,
+			cidr:  strp("10.0.1.0/24"),
+			want:  "/hubs/5/networks?cidr=10.0.1.0%2F24",
+		},
+		{
+			name:        "name only",
+			hubID:       5,
+			networkName: strp("web-tier"),
+			want:        "/hubs/5/networks?name=web-tier",
+		},
+		{
+			name:        "cidr and name combined",
+			hubID:       5,
+			cidr:        strp("10.0.1.0/24"),
+			networkName: strp("web-tier"),
+			want:        "/hubs/5/networks?cidr=10.0.1.0%2F24&name=web-tier",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := hubNetworksURL(tc.hubID, tc.cidr, tc.networkName)
+			if got != tc.want {
+				t.Errorf("hubNetworksURL() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSitesURL(t *testing.T) {
 	cases := []struct {
 		name     string

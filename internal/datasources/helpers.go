@@ -44,6 +44,24 @@ func hubScopesURL(hubID int64, hasParent bool, parentID int64, rootOnly bool, ci
 	return reqURL
 }
 
+// hubNetworksURL builds the request URL for GET /hubs/{hub_id}/networks with
+// the optional server-side filters cidr/name.
+func hubNetworksURL(hubID int64, cidr, name *string) string {
+	q := url.Values{}
+	if cidr != nil {
+		q.Set("cidr", *cidr)
+	}
+	if name != nil {
+		q.Set("name", *name)
+	}
+
+	reqURL := fmt.Sprintf("/hubs/%d/networks", hubID)
+	if encoded := q.Encode(); encoded != "" {
+		reqURL += "?" + encoded
+	}
+	return reqURL
+}
+
 // scopeNetworksURL builds the request URL for GET /scopes/{scope_id}/networks
 // with the optional server-side filters cidr/name.
 func scopeNetworksURL(scopeID int64, cidr, name *string) string {
