@@ -129,6 +129,10 @@ func (r *NextSubnetResource) Read(ctx context.Context, req resource.ReadRequest,
 	state.Name = types.StringValue(s.Name)
 	state.Description = types.StringPointerValue(s.Description)
 	state.CIDR = types.StringValue(s.CIDR)
+	state.NetworkID = types.Int64Value(s.NetworkID)
+	if prefixLength, err := cidrPrefixLength(s.CIDR); err == nil {
+		state.PrefixLength = types.Int64Value(prefixLength)
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 

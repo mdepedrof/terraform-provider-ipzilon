@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"net"
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -35,4 +36,20 @@ func int64Ptr(v types.Int64) *int64 {
 	}
 	n := v.ValueInt64()
 	return &n
+}
+
+// cidrPrefixLength extracts the prefix length from a CIDR string (e.g.
+// "10.1.4.0/24" -> 24). Used in Read() to repopulate the prefix_length
+// attribute of next_subnet/next_network/last_subnet after import or refresh,
+// since the API response only returns the resulting cidr, never the
+// prefix_length that was used to request it. Without this, prefix_length
+// stays unknown after `terraform import` and, being RequiresReplace, forces
+// a spurious replacement on the very next plan.
+func cidrPrefixLength(cidr string) (int64, error) {
+	_, network, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return 0, err
+	}
+	ones, _ := network.Mask.Size()
+	return int64(ones), nil
 }
