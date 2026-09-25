@@ -55,8 +55,8 @@ func (d *NetworksDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			"id":       schema.Int64Attribute{Optional: true, Description: "Lookup a single network by ID."},
 			"hub_id":   schema.Int64Attribute{Optional: true, Description: "List all networks across all scopes of a hub."},
 			"scope_id": schema.Int64Attribute{Optional: true, Description: "List networks for a specific scope."},
-			"cidr":     schema.StringAttribute{Optional: true, Description: "Filter: exact cidr match (server-side). Only applies when scope_id is set."},
-			"name":     schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side). Only applies when scope_id is set."},
+			"cidr":     schema.StringAttribute{Optional: true, Description: "Filter: exact cidr match (server-side). Applies when hub_id or scope_id is set."},
+			"name":     schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side). Applies when hub_id or scope_id is set."},
 			"items":    schema.ListNestedAttribute{Computed: true, NestedObject: networkItemSchema},
 		},
 	}
@@ -117,8 +117,10 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 		}
 		items = []networkItem{networkToItem(n)}
 	} else if hasHub {
+		reqURL := hubNetworksURL(cfg.HubID.ValueInt64(), stringFilter(cfg.CIDR), stringFilter(cfg.Name))
+
 		var networks []client.Network
-		if err := d.client.Get(fmt.Sprintf("/hubs/%d/networks", cfg.HubID.ValueInt64()), &networks); err != nil {
+		if err := d.client.Get(reqURL, &networks); err != nil {
 			resp.Diagnostics.AddError("List networks failed", err.Error())
 			return
 		}

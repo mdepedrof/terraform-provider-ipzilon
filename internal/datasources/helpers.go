@@ -44,6 +44,24 @@ func hubScopesURL(hubID int64, hasParent bool, parentID int64, rootOnly bool, ci
 	return reqURL
 }
 
+// hubNetworksURL builds the request URL for GET /hubs/{hub_id}/networks with
+// the optional server-side filters cidr/name.
+func hubNetworksURL(hubID int64, cidr, name *string) string {
+	q := url.Values{}
+	if cidr != nil {
+		q.Set("cidr", *cidr)
+	}
+	if name != nil {
+		q.Set("name", *name)
+	}
+
+	reqURL := fmt.Sprintf("/hubs/%d/networks", hubID)
+	if encoded := q.Encode(); encoded != "" {
+		reqURL += "?" + encoded
+	}
+	return reqURL
+}
+
 // scopeNetworksURL builds the request URL for GET /scopes/{scope_id}/networks
 // with the optional server-side filters cidr/name.
 func scopeNetworksURL(scopeID int64, cidr, name *string) string {
@@ -56,6 +74,24 @@ func scopeNetworksURL(scopeID int64, cidr, name *string) string {
 	}
 
 	reqURL := fmt.Sprintf("/scopes/%d/networks", scopeID)
+	if encoded := q.Encode(); encoded != "" {
+		reqURL += "?" + encoded
+	}
+	return reqURL
+}
+
+// siteHubsURL builds the request URL for GET /sites/{site_id}/hubs with the
+// optional server-side filters address_space/name.
+func siteHubsURL(siteID int64, addressSpace, name *string) string {
+	q := url.Values{}
+	if addressSpace != nil {
+		q.Set("address_space", *addressSpace)
+	}
+	if name != nil {
+		q.Set("name", *name)
+	}
+
+	reqURL := fmt.Sprintf("/sites/%d/hubs", siteID)
 	if encoded := q.Encode(); encoded != "" {
 		reqURL += "?" + encoded
 	}
