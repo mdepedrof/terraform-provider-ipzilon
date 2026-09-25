@@ -129,6 +129,10 @@ func (r *NextNetworkResource) Read(ctx context.Context, req resource.ReadRequest
 	state.Name = types.StringValue(n.Name)
 	state.Description = types.StringPointerValue(n.Description)
 	state.CIDR = types.StringValue(n.CIDR)
+	state.ScopeID = types.Int64Value(n.ScopeID)
+	if prefixLength, err := cidrPrefixLength(n.CIDR); err == nil {
+		state.PrefixLength = types.Int64Value(prefixLength)
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
