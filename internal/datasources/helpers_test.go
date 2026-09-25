@@ -116,3 +116,35 @@ func TestScopeNetworksURL(t *testing.T) {
 		})
 	}
 }
+
+func TestSitesURL(t *testing.T) {
+	cases := []struct {
+		name     string
+		siteName *string
+		want     string
+	}{
+		{
+			name: "no filters",
+			want: "/sites/",
+		},
+		{
+			name:     "name only",
+			siteName: strp("hq"),
+			want:     "/sites/?name=hq",
+		},
+		{
+			name:     "name with spaces",
+			siteName: strp("main office"),
+			want:     "/sites/?name=main+office",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sitesURL(tc.siteName)
+			if got != tc.want {
+				t.Errorf("sitesURL() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

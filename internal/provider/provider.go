@@ -96,6 +96,7 @@ func (p *IPzilon) Resources(_ context.Context) []func() resource.Resource {
 
 func (p *IPzilon) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		datasources.NewSitesDataSource,
 		datasources.NewHubsDataSource,
 		datasources.NewScopesDataSource,
 		datasources.NewNetworksDataSource,

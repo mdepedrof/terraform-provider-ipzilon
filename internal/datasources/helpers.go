@@ -62,6 +62,21 @@ func scopeNetworksURL(scopeID int64, cidr, name *string) string {
 	return reqURL
 }
 
+// sitesURL builds the request URL for GET /sites/ with the optional
+// server-side filter name.
+func sitesURL(name *string) string {
+	q := url.Values{}
+	if name != nil {
+		q.Set("name", *name)
+	}
+
+	reqURL := "/sites/"
+	if encoded := q.Encode(); encoded != "" {
+		reqURL += "?" + encoded
+	}
+	return reqURL
+}
+
 func configureClient(req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) *client.Client {
 	if req.ProviderData == nil {
 		return nil
