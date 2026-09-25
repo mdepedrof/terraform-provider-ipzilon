@@ -21,6 +21,8 @@ type networksModel struct {
 	ID      types.Int64   `tfsdk:"id"`
 	HubID   types.Int64   `tfsdk:"hub_id"`
 	ScopeID types.Int64   `tfsdk:"scope_id"`
+	CIDR    types.String  `tfsdk:"cidr"`
+	Name    types.String  `tfsdk:"name"`
 	Items   []networkItem `tfsdk:"items"`
 }
 
@@ -53,6 +55,8 @@ func (d *NetworksDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			"id":       schema.Int64Attribute{Optional: true, Description: "Lookup a single network by ID."},
 			"hub_id":   schema.Int64Attribute{Optional: true, Description: "List all networks across all scopes of a hub."},
 			"scope_id": schema.Int64Attribute{Optional: true, Description: "List networks for a specific scope."},
+			"cidr":     schema.StringAttribute{Optional: true, Description: "Filter: exact cidr match (server-side). Only applies when scope_id is set."},
+			"name":     schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side). Only applies when scope_id is set."},
 			"items":    schema.ListNestedAttribute{Computed: true, NestedObject: networkItemSchema},
 		},
 	}
@@ -122,8 +126,10 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 			items = append(items, networkToItem(n))
 		}
 	} else {
+		reqURL := scopeNetworksURL(cfg.ScopeID.ValueInt64(), stringFilter(cfg.CIDR), stringFilter(cfg.Name))
+
 		var networks []client.Network
-		if err := d.client.Get(fmt.Sprintf("/scopes/%d/networks", cfg.ScopeID.ValueInt64()), &networks); err != nil {
+		if err := d.client.Get(reqURL, &networks); err != nil {
 			resp.Diagnostics.AddError("List networks failed", err.Error())
 			return
 		}

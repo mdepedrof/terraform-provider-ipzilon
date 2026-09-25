@@ -1,5 +1,14 @@
 package client
 
+// Site
+
+type Site struct {
+	ID          int64   `json:"id"`
+	Name        string  `json:"name"`
+	Type        string  `json:"type"`
+	Description *string `json:"description"`
+}
+
 // Hub
 
 type Hub struct {
@@ -77,6 +86,12 @@ type NetworkUpdate struct {
 	Name        *string `json:"name,omitempty"`
 	CIDR        *string `json:"cidr,omitempty"`
 	Description *string `json:"description"`
+}
+
+type AllocateNetworkBody struct {
+	PrefixLength int64   `json:"prefix_length"`
+	Name         *string `json:"name,omitempty"`
+	Description  *string `json:"description,omitempty"`
 }
 
 // Subnet

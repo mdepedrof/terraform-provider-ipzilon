@@ -28,8 +28,10 @@ output "network_cidrs" {
 
 ### Optional
 
+- `cidr` (String) Filter: exact cidr match (server-side). Only applies when scope_id is set.
 - `hub_id` (Number) List all networks across all scopes of a hub.
 - `id` (Number) Lookup a single network by ID.
+- `name` (String) Filter: exact name match (server-side). Only applies when scope_id is set.
 - `scope_id` (Number) List networks for a specific scope.
 
 ### Read-Only

@@ -37,9 +37,11 @@ data "ipzilon_scopes" "projects" {
 
 ### Optional
 
+- `cidr` (String) Filter: exact cidr match (server-side).
 - `hub_id` (Number) List scopes for this hub.
 - `id` (Number) Lookup a single scope by ID.
 - `kind` (String) Optional client-side filter: only return items with this kind (landing_zone or project). Not supported server-side.
+- `name` (String) Filter: exact name match (server-side).
 - `parent_id` (Number) Filter by parent scope ID.
 - `root_only` (Boolean) When true, return only root-level scopes (parent_id IS NULL).
 
