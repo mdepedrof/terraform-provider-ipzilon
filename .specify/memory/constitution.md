@@ -49,6 +49,9 @@ El provider sigue versionado semántico (`MAJOR.MINOR.PATCH`) y protege el estad
   migrar el estado automáticamente; si no es posible, MUST documentarse el `terraform state mv`
   o procedimiento manual equivalente.
 - Todo recurso MUST soportar `terraform import` y disponer de su `import.sh` de ejemplo.
+- Tras un `terraform import`, `Read` MUST rellenar todos los atributos del esquema
+  (derivándolos de la respuesta de la API cuando esta no los devuelva directamente, p. ej.
+  `prefix_length` a partir de `cidr`), de modo que el siguiente `plan` no muestre cambios.
 - Los atributos que no puedan actualizarse in situ en la API MUST marcarse con `RequiresReplace`.
 
 **Razón**: un provider de IPAM gestiona datos críticos de red; perder o corromper el estado
@@ -124,4 +127,4 @@ seguridad automática y los de aceptación la validación previa a la release.
   principios, y cada revisión de PR MUST verificarlos. Cualquier excepción MUST justificarse
   explícitamente en el plan o en la PR.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-28
+**Version**: 1.0.1 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-28
