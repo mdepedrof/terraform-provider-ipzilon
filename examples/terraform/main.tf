@@ -64,7 +64,7 @@ resource "ipzilon_last_subnet" "mgmt" {
 # Manage a specific IP (user specifies the address)
 resource "ipzilon_ip_address" "gateway" {
   subnet_id   = ipzilon_next_subnet.web.id
-  address     = "10.0.1.33" # first host in the web-tier /27
+  address     = cidrhost(ipzilon_next_subnet.web.cidr, 4) # first address Azure does not reserve (.0-.3 are)
   hostname    = "gw-web-tier"
   description = "Web tier gateway"
 }

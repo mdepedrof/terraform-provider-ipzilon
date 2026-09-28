@@ -3,12 +3,12 @@
 page_title: "ipzilon_subnet Resource - ipzilon"
 subcategory: ""
 description: |-
-  Manages a subnet with an explicit CIDR inside a network. Creating a subnet auto-populates all IP records.
+  Manages a subnet with an explicit CIDR inside a network. Addresses get a record only when they are occupied, reserved or annotated.
 ---
 
 # ipzilon_subnet (Resource)
 
-Manages a subnet with an explicit CIDR inside a network. Creating a subnet auto-populates all IP records.
+Manages a subnet with an explicit CIDR inside a network. Addresses get a record only when they are occupied, reserved or annotated.
 
 ## Example Usage
 
@@ -26,7 +26,7 @@ resource "ipzilon_subnet" "example" {
 
 ### Required
 
-- `cidr` (String) Subnet CIDR. Changing this repopulates all IP records.
+- `cidr` (String) Subnet CIDR (IPv4, /8 or smaller). Changing it keeps the stored addresses that remain inside the new range; stored addresses left outside are released (the provider always sends force: true).
 - `name` (String) Resource name (must be lowercase — the server normalizes all strings).
 - `network_id` (Number) Network this subnet belongs to.
 

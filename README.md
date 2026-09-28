@@ -23,7 +23,7 @@ Manage IP address space in [IPzilon](https://github.com/mdepedrof/ipzilon) — a
 
 - Terraform ≥ 1.0
 - Go ≥ 1.25.8 (to build from source)
-- A running [IPzilon](https://github.com/mdepedrof/ipzilon) instance
+- A running [IPzilon](https://github.com/mdepedrof/ipzilon) instance (>= 3.0.0 for provider 3.x, see [Compatibility](#compatibility))
 
 ## Usage
 
@@ -32,7 +32,7 @@ terraform {
   required_providers {
     ipzilon = {
       source  = "registry.terraform.io/mdepedrof/ipzilon"
-      version = "~> 2.0"
+      version = "~> 3.0"
     }
   }
 }
@@ -83,6 +83,65 @@ output "vm_ip" {
 ```
 
 A full example with all resources and data sources is in [`examples/terraform/`](examples/terraform/).
+
+## Compatibility
+
+| Provider | IPzilon |
+|----------|---------|
+| `~> 3.0` | >= 3.0.0 |
+| `~> 2.2` | 2.x (up to 2.3.1) |
+
+The provider checks the version reported by IPzilon's `/health` endpoint and
+fails with `Unsupported IPzilon version` when it is older than the one it
+supports.
+
+Requests rejected by IPzilon with `429` (rate limit) or `503` (server busy) are
+retried automatically, honouring `Retry-After`, for up to 10 minutes per
+request. Each API token has its own rate-limit quota, so use one token per
+pipeline if runs should not share it.
+
+## Breaking Changes (v3.0.0)
+
+Version 3.0.0 adapts the provider to IPzilon 3.0.0, which paginates listings,
+stores only occupied/reserved/annotated IP addresses and enforces a
+rate limit. It **does not work with IPzilon 2.x**.
+
+### 1. IPzilon >= 3.0.0 required
+
+Upgrade in this order:
+
+1. Until you migrate, pin the IPzilon image to `2.3.1` (not `:latest`) and the
+   provider to `~> 2.2`.
+2. Migrate IPzilon to 3.0.0.
+3. Upgrade the provider to `~> 3.0`. Existing state keeps working as is (the
+   IDs of occupied/reserved addresses are preserved by the IPzilon migration),
+   except for the `status = "available"` case below.
+
+### 2. `status` on `ipzilon_ip_address` / `ipzilon_next_ip_address`
+
+`status` only accepts `used` or `reserved`. A free address has no record in
+IPzilon 3.0, so `status = "available"` is rejected at plan time: to free an
+address, destroy the resource; to block it, use `reserved`. If a configuration
+sets `available`, change it to `reserved`/`used` or remove the resource before
+upgrading.
+
+Destroying either resource now releases the address with `DELETE /ips/{id}`:
+the record is deleted and the address becomes free again. A re-occupied
+address gets a new ID.
+
+### 3. `ipzilon_ip_addresses`: `id` can be null
+
+Free addresses are listed with `id = null`. Without `status`, the data source
+lists the whole subnet (e.g. 65,536 items for a /16, fetched in pages of
+1000); set `status` to limit the cost. Looking up a released address by `id`
+fails with `IP not found`.
+
+### 4. CIDR validation at plan time
+
+Hubs (`address_space`), scopes, networks and subnets (`cidr`) larger than `/8`
+and IPv6 subnets are rejected at plan time when created or changed, mirroring
+IPzilon 3.0. Existing objects larger than `/8` keep working while their CIDR
+does not change.
 
 ## Breaking Changes (v2.0.0)
 
@@ -159,8 +218,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 ## Releasing
 
 ```bash
-git tag v2.0.0
-git push origin v2.0.0
+git tag v3.0.0
+git push origin v3.0.0
 ```
 
 The release workflow builds binaries for Linux, macOS (Apple Silicon), and Windows, signs them with GPG, and publishes a GitHub release. The Terraform Registry picks it up automatically.

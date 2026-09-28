@@ -50,7 +50,7 @@ resource "ipzilon_scope" "app_project" {
 
 ### Optional
 
-- `cidr` (String) Optional CIDR assigned to this scope.
+- `cidr` (String) Optional CIDR assigned to this scope. Maximum size /8.
 - `description` (String) Free-text description.
 - `parent_id` (Number) Parent scope ID (omit for root-level scope).
 

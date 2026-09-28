@@ -3,23 +3,27 @@
 page_title: "ipzilon_ip_addresses Data Source - ipzilon"
 subcategory: ""
 description: |-
-  List IP addresses. Provide id (singular) OR subnet_id with optional status filter.
+  List IP addresses. Provide id (singular) OR subnet_id with optional status filter. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.
 ---
 
 # ipzilon_ip_addresses (Data Source)
 
-List IP addresses. Provide id (singular) OR subnet_id with optional status filter.
+List IP addresses. Provide id (singular) OR subnet_id with optional status filter. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.
 
 ## Example Usage
 
 ```terraform
-# List all available IPs in a subnet
+# List the available IPs in a subnet.
+# Set status whenever possible: without it the whole subnet is listed
+# (e.g. 65,536 items for a /16, fetched in pages of 1000).
 data "ipzilon_ip_addresses" "available" {
   subnet_id = 1
   status    = "available"
 }
 
-# Lookup a single IP by ID
+# Lookup a single IP by ID. Only occupied, reserved or annotated addresses have
+# an ID (free addresses are listed with id = null), and a released address that
+# is occupied again gets a new ID.
 data "ipzilon_ip_addresses" "single" {
   id = 42
 }
@@ -35,7 +39,7 @@ output "available_ips" {
 ### Optional
 
 - `id` (Number) Lookup a single IP by ID.
-- `status` (String) Filter by status: available, used, reserved.
+- `status` (String) Filter by status: available, used, reserved. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.
 - `subnet_id` (Number) List IPs for a subnet.
 
 ### Read-Only
@@ -50,7 +54,7 @@ Read-Only:
 - `address` (String) IP address.
 - `description` (String) Free-text description.
 - `hostname` (String) Hostname — semantic name for the address.
-- `id` (Number)
+- `id` (Number) IP record ID. Null for free addresses that have no stored record (IPzilon >= 3.0).
 - `is_azure_reserved` (Boolean) True for IPs auto-reserved by Azure (.1/.2/.3/broadcast).
 - `status` (String) IP status: available, used, or reserved.
-- `subnet_id` (Number)
+- `subnet_id` (Number) Subnet containing this address.
