@@ -90,7 +90,7 @@ func (r *NextNetworkResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 	var n client.Network
-	if err := r.client.Post(
+	if err := r.client.Post(ctx,
 		fmt.Sprintf("/scopes/%d/next-available-network", plan.ScopeID.ValueInt64()),
 		client.AllocateNetworkBody{
 			PrefixLength: plan.PrefixLength.ValueInt64(),
@@ -98,6 +98,10 @@ func (r *NextNetworkResource) Create(ctx context.Context, req resource.CreateReq
 			Description:  strPtr(plan.Description),
 		}, &n,
 	); err != nil {
+		if summary, detail, ok := allocationErrorDiag(err, plan.PrefixLength.ValueInt64(), "ipzilon_network"); ok {
+			resp.Diagnostics.AddError(summary, detail)
+			return
+		}
 		resp.Diagnostics.AddError("Reserve next network failed", err.Error())
 		return
 	}
@@ -118,7 +122,7 @@ func (r *NextNetworkResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 	var n client.Network
-	if err := r.client.Get(fmt.Sprintf("/networks/%d", state.ID.ValueInt64()), &n); err != nil {
+	if err := r.client.Get(ctx, fmt.Sprintf("/networks/%d", state.ID.ValueInt64()), &n); err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -146,7 +150,7 @@ func (r *NextNetworkResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 	name := plan.Name.ValueString()
 	var n client.Network
-	if err := r.client.Patch(fmt.Sprintf("/networks/%d", state.ID.ValueInt64()), client.NetworkUpdate{
+	if err := r.client.Patch(ctx, fmt.Sprintf("/networks/%d", state.ID.ValueInt64()), client.NetworkUpdate{
 		Name:        &name,
 		Description: strPtr(plan.Description),
 	}, &n); err != nil {
@@ -164,7 +168,7 @@ func (r *NextNetworkResource) Delete(ctx context.Context, req resource.DeleteReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.Delete(fmt.Sprintf("/networks/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
+	if err := r.client.Delete(ctx, fmt.Sprintf("/networks/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
 		resp.Diagnostics.AddError("Delete network failed", err.Error())
 	}
 }

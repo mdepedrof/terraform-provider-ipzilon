@@ -87,14 +87,14 @@ func (d *SubnetsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	var items []subnetItem
 	if hasID {
 		var s client.Subnet
-		if err := d.client.Get(fmt.Sprintf("/subnets/%d", cfg.ID.ValueInt64()), &s); err != nil {
+		if err := d.client.Get(ctx, fmt.Sprintf("/subnets/%d", cfg.ID.ValueInt64()), &s); err != nil {
 			resp.Diagnostics.AddError("Get subnet failed", err.Error())
 			return
 		}
 		items = []subnetItem{subnetToItem(s)}
 	} else {
-		var subnets []client.Subnet
-		if err := d.client.Get(fmt.Sprintf("/networks/%d/subnets", cfg.NetworkID.ValueInt64()), &subnets); err != nil {
+		subnets, err := client.GetAll[client.Subnet](ctx, d.client, fmt.Sprintf("/networks/%d/subnets", cfg.NetworkID.ValueInt64()))
+		if err != nil {
 			resp.Diagnostics.AddError("List subnets failed", err.Error())
 			return
 		}

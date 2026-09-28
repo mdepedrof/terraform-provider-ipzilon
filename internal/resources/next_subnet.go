@@ -90,7 +90,7 @@ func (r *NextSubnetResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 	var s client.Subnet
-	if err := r.client.Post(
+	if err := r.client.Post(ctx,
 		fmt.Sprintf("/networks/%d/next-available-subnet", plan.NetworkID.ValueInt64()),
 		client.AllocateSubnetBody{
 			PrefixLength: plan.PrefixLength.ValueInt64(),
@@ -98,6 +98,10 @@ func (r *NextSubnetResource) Create(ctx context.Context, req resource.CreateRequ
 			Description:  strPtr(plan.Description),
 		}, &s,
 	); err != nil {
+		if summary, detail, ok := allocationErrorDiag(err, plan.PrefixLength.ValueInt64(), "ipzilon_subnet"); ok {
+			resp.Diagnostics.AddError(summary, detail)
+			return
+		}
 		resp.Diagnostics.AddError("Reserve next subnet failed", err.Error())
 		return
 	}
@@ -118,7 +122,7 @@ func (r *NextSubnetResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 	var s client.Subnet
-	if err := r.client.Get(fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), &s); err != nil {
+	if err := r.client.Get(ctx, fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), &s); err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -146,7 +150,7 @@ func (r *NextSubnetResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 	name := plan.Name.ValueString()
 	var s client.Subnet
-	if err := r.client.Patch(fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), client.SubnetUpdate{
+	if err := r.client.Patch(ctx, fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), client.SubnetUpdate{
 		Name:        &name,
 		Description: strPtr(plan.Description),
 	}, &s); err != nil {
@@ -164,7 +168,7 @@ func (r *NextSubnetResource) Delete(ctx context.Context, req resource.DeleteRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.Delete(fmt.Sprintf("/subnets/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
+	if err := r.client.Delete(ctx, fmt.Sprintf("/subnets/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
 		resp.Diagnostics.AddError("Delete subnet failed", err.Error())
 	}
 }

@@ -111,7 +111,7 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 	var items []networkItem
 	if hasID {
 		var n client.Network
-		if err := d.client.Get(fmt.Sprintf("/networks/%d", cfg.ID.ValueInt64()), &n); err != nil {
+		if err := d.client.Get(ctx, fmt.Sprintf("/networks/%d", cfg.ID.ValueInt64()), &n); err != nil {
 			resp.Diagnostics.AddError("Get network failed", err.Error())
 			return
 		}
@@ -119,8 +119,8 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 	} else if hasHub {
 		reqURL := hubNetworksURL(cfg.HubID.ValueInt64(), stringFilter(cfg.CIDR), stringFilter(cfg.Name))
 
-		var networks []client.Network
-		if err := d.client.Get(reqURL, &networks); err != nil {
+		networks, err := client.GetAll[client.Network](ctx, d.client, reqURL)
+		if err != nil {
 			resp.Diagnostics.AddError("List networks failed", err.Error())
 			return
 		}
@@ -130,8 +130,8 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 	} else {
 		reqURL := scopeNetworksURL(cfg.ScopeID.ValueInt64(), stringFilter(cfg.CIDR), stringFilter(cfg.Name))
 
-		var networks []client.Network
-		if err := d.client.Get(reqURL, &networks); err != nil {
+		networks, err := client.GetAll[client.Network](ctx, d.client, reqURL)
+		if err != nil {
 			resp.Diagnostics.AddError("List networks failed", err.Error())
 			return
 		}

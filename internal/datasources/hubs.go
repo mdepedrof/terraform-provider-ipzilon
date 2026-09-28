@@ -94,7 +94,7 @@ func (d *HubsDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	var items []hubItem
 	if hasID {
 		var h client.Hub
-		if err := d.client.Get(fmt.Sprintf("/hubs/%d", cfg.ID.ValueInt64()), &h); err != nil {
+		if err := d.client.Get(ctx, fmt.Sprintf("/hubs/%d", cfg.ID.ValueInt64()), &h); err != nil {
 			resp.Diagnostics.AddError("Get hub failed", err.Error())
 			return
 		}
@@ -102,8 +102,8 @@ func (d *HubsDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	} else {
 		reqURL := siteHubsURL(cfg.SiteID.ValueInt64(), stringFilter(cfg.AddressSpace), stringFilter(cfg.Name))
 
-		var hubs []client.Hub
-		if err := d.client.Get(reqURL, &hubs); err != nil {
+		hubs, err := client.GetAll[client.Hub](ctx, d.client, reqURL)
+		if err != nil {
 			resp.Diagnostics.AddError("List hubs failed", err.Error())
 			return
 		}

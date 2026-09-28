@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -48,7 +49,7 @@ func TestNextNetworkResource_Create(t *testing.T) {
 	name := "web-tier"
 
 	var got client.Network
-	err := c.Post("/scopes/7/next-available-network", client.AllocateNetworkBody{
+	err := c.Post(context.Background(), "/scopes/7/next-available-network", client.AllocateNetworkBody{
 		PrefixLength: 24,
 		Name:         &name,
 	}, &got)
@@ -79,7 +80,7 @@ func TestNextNetworkResource_CreateConflict(t *testing.T) {
 
 	c := newTestClient(srv.URL)
 	var got client.Network
-	err := c.Post("/scopes/7/next-available-network", client.AllocateNetworkBody{PrefixLength: 24}, &got)
+	err := c.Post(context.Background(), "/scopes/7/next-available-network", client.AllocateNetworkBody{PrefixLength: 24}, &got)
 	if err == nil {
 		t.Fatal("expected error on 409, got nil")
 	}
@@ -111,7 +112,7 @@ func TestNextNetworkResource_ReadDeleteRoutes(t *testing.T) {
 	c := newTestClient(srv.URL)
 
 	var n client.Network
-	if err := c.Get("/networks/42", &n); err != nil {
+	if err := c.Get(context.Background(), "/networks/42", &n); err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
 	if gotMethod != http.MethodGet || gotPath != "/networks/42" {
@@ -119,14 +120,14 @@ func TestNextNetworkResource_ReadDeleteRoutes(t *testing.T) {
 	}
 
 	name := "renamed"
-	if err := c.Patch("/networks/42", client.NetworkUpdate{Name: &name}, &n); err != nil {
+	if err := c.Patch(context.Background(), "/networks/42", client.NetworkUpdate{Name: &name}, &n); err != nil {
 		t.Fatalf("Patch failed: %v", err)
 	}
 	if gotMethod != http.MethodPatch || gotPath != "/networks/42" || n.Name != "renamed" {
 		t.Errorf("Update: got %s %s, name=%s", gotMethod, gotPath, n.Name)
 	}
 
-	if err := c.Delete("/networks/42"); err != nil {
+	if err := c.Delete(context.Background(), "/networks/42"); err != nil {
 		t.Fatalf("Delete failed: %v", err)
 	}
 	if gotMethod != http.MethodDelete || gotPath != "/networks/42" {
@@ -146,7 +147,7 @@ func TestNextNetworkResource_ReadNotFound(t *testing.T) {
 
 	c := newTestClient(srv.URL)
 	var n client.Network
-	err := c.Get("/networks/999", &n)
+	err := c.Get(context.Background(), "/networks/999", &n)
 	if !client.IsNotFound(err) {
 		t.Errorf("expected IsNotFound(err) = true, got err = %v", err)
 	}

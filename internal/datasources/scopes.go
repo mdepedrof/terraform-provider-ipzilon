@@ -109,7 +109,7 @@ func (d *ScopesDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	var items []scopeItem
 	if hasID {
 		var s client.Scope
-		if err := d.client.Get(fmt.Sprintf("/scopes/%d", cfg.ID.ValueInt64()), &s); err != nil {
+		if err := d.client.Get(ctx, fmt.Sprintf("/scopes/%d", cfg.ID.ValueInt64()), &s); err != nil {
 			resp.Diagnostics.AddError("Get scope failed", err.Error())
 			return
 		}
@@ -131,8 +131,8 @@ func (d *ScopesDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			stringFilter(cfg.Name),
 		)
 
-		var scopes []client.Scope
-		if err := d.client.Get(reqURL, &scopes); err != nil {
+		scopes, err := client.GetAll[client.Scope](ctx, d.client, reqURL)
+		if err != nil {
 			resp.Diagnostics.AddError("List scopes failed", err.Error())
 			return
 		}

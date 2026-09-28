@@ -2,13 +2,20 @@ package resources
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
@@ -37,10 +44,11 @@ func (r *IPAddressResource) Metadata(_ context.Context, req resource.MetadataReq
 
 func (r *IPAddressResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a specific IP address (pre-populated by the subnet). Create marks it as used; destroy releases it back to available.",
+		Description: "Occupies a specific IP address in a subnet. Destroy releases it.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
-				Computed: true,
+				Computed:    true,
+				Description: "IPzilon record ID of the occupied address.",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
@@ -53,14 +61,16 @@ func (r *IPAddressResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 			},
 			"address": schema.StringAttribute{
-				Required:    true,
-				Description: "IP address to manage (e.g. 10.0.1.5). Must exist in the subnet and be available.",
+				Required:      true,
+				Description:   "IP address to occupy (e.g. 10.0.1.5). Must be inside the subnet and not already in use.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators:    []validator.String{ipAddressValidator{}},
 			},
 			"status": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "IP status: available, used, reserved. Defaults to 'used' on create.",
+				Description: "IP status: used (default) or reserved. To free the address, destroy the resource.",
+				Validators:  []validator.String{ipStatusValidator},
 			},
 			"is_azure_reserved": schema.BoolAttribute{
 				Computed:    true,
@@ -84,16 +94,46 @@ func (r *IPAddressResource) Configure(_ context.Context, req resource.ConfigureR
 	r.client = c
 }
 
-func ipFromAPI(ip client.IPAddress) ipAddressModel {
+func ipFromAPI(ip client.IPAddress) (ipAddressModel, error) {
+	id, err := ipIDValue(ip.ID)
+	if err != nil {
+		return ipAddressModel{}, err
+	}
 	return ipAddressModel{
-		ID:              types.Int64Value(ip.ID),
+		ID:              id,
 		SubnetID:        types.Int64Value(ip.SubnetID),
 		Address:         types.StringValue(ip.Address),
 		Status:          types.StringValue(ip.Status),
 		IsAzureReserved: types.BoolValue(ip.IsAzureReserved),
 		Hostname:        types.StringPointerValue(ip.Hostname),
 		Description:     types.StringPointerValue(ip.Description),
+	}, nil
+}
+
+// registerIP occupies a specific address with POST /subnets/{id}/ips (IPzilon
+// >= 3.0: free addresses have no record to PATCH) and translates the API
+// errors into user-facing diagnostics.
+func registerIP(ctx context.Context, c *client.Client, subnetID int64, body client.IPAddressRegister) (client.IPAddress, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var ip client.IPAddress
+	err := c.Post(ctx, fmt.Sprintf("/subnets/%d/ips", subnetID), body, &ip)
+
+	var apiErr *client.APIError
+	switch {
+	case err == nil:
+		if ip.ID == nil {
+			diags.AddError("Create IP failed", "Unexpected response: IP address without id")
+		}
+	case client.IsConflict(err):
+		diags.AddError("IP address in use", fmt.Sprintf("Address %s is already in use in subnet %d.", body.Address, subnetID))
+	case errors.As(err, &apiErr) && apiErr.Code == http.StatusBadRequest && strings.Contains(apiErr.Message, "is not within subnet"):
+		diags.AddError("IP address outside subnet", fmt.Sprintf("Address %s is not within subnet %d.", body.Address, subnetID))
+	case client.IsNotFound(err):
+		diags.AddError("Subnet not found", fmt.Sprintf("Subnet %d does not exist.", subnetID))
+	default:
+		diags.AddError("Create IP failed", err.Error())
 	}
+	return ip, diags
 }
 
 func (r *IPAddressResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -103,39 +143,31 @@ func (r *IPAddressResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	// Find the pre-existing IP record by exact address within the subnet
-	var ips []client.IPAddress
-	if err := r.client.Get(
-		fmt.Sprintf("/subnets/%d/ips?address=%s", plan.SubnetID.ValueInt64(), plan.Address.ValueString()),
-		&ips,
-	); err != nil {
-		resp.Diagnostics.AddError("Lookup IP failed", err.Error())
-		return
-	}
-	if len(ips) == 0 {
-		resp.Diagnostics.AddError("IP not found", fmt.Sprintf("Address %s does not exist in subnet %d.", plan.Address.ValueString(), plan.SubnetID.ValueInt64()))
-		return
-	}
-	ip := ips[0]
-	if ip.Status != "available" {
-		resp.Diagnostics.AddError("IP not available", fmt.Sprintf("Address %s has status %q (expected available).", ip.Address, ip.Status))
-		return
-	}
-
 	status := "used"
 	if !plan.Status.IsNull() && !plan.Status.IsUnknown() {
 		status = plan.Status.ValueString()
 	}
-	var updated client.IPAddress
-	if err := r.client.Patch(fmt.Sprintf("/ips/%d", ip.ID), client.IPAddressUpdate{
-		Status:      &status,
+	ip, diags := registerIP(ctx, r.client, plan.SubnetID.ValueInt64(), client.IPAddressRegister{
+		Address:     plan.Address.ValueString(),
+		Status:      status,
 		Hostname:    strPtr(plan.Hostname),
 		Description: strPtr(plan.Description),
-	}, &updated); err != nil {
-		resp.Diagnostics.AddError("Mark IP used failed", err.Error())
+	})
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, ipFromAPI(updated))...)
+	r.setState(ctx, ip, &resp.State, &resp.Diagnostics)
+}
+
+// setState stores an API IP record in the resource state.
+func (r *IPAddressResource) setState(ctx context.Context, ip client.IPAddress, state *tfsdk.State, diags *diag.Diagnostics) {
+	model, err := ipFromAPI(ip)
+	if err != nil {
+		diags.AddError("Read IP failed", err.Error())
+		return
+	}
+	diags.Append(state.Set(ctx, model)...)
 }
 
 func (r *IPAddressResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -145,7 +177,7 @@ func (r *IPAddressResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 	var ip client.IPAddress
-	if err := r.client.Get(fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), &ip); err != nil {
+	if err := r.client.Get(ctx, fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), &ip); err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -153,7 +185,7 @@ func (r *IPAddressResource) Read(ctx context.Context, req resource.ReadRequest, 
 		resp.Diagnostics.AddError("Read IP failed", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, ipFromAPI(ip))...)
+	r.setState(ctx, ip, &resp.State, &resp.Diagnostics)
 }
 
 func (r *IPAddressResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -166,7 +198,7 @@ func (r *IPAddressResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 	status := plan.Status.ValueString()
 	var ip client.IPAddress
-	if err := r.client.Patch(fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), client.IPAddressUpdate{
+	if err := r.client.Patch(ctx, fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), client.IPAddressUpdate{
 		Status:      &status,
 		Hostname:    strPtr(plan.Hostname),
 		Description: strPtr(plan.Description),
@@ -174,7 +206,7 @@ func (r *IPAddressResource) Update(ctx context.Context, req resource.UpdateReque
 		resp.Diagnostics.AddError("Update IP failed", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, ipFromAPI(ip))...)
+	r.setState(ctx, ip, &resp.State, &resp.Diagnostics)
 }
 
 func (r *IPAddressResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -183,13 +215,9 @@ func (r *IPAddressResource) Delete(ctx context.Context, req resource.DeleteReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// Release the IP back to the pool (don't delete the record — it was pre-created by populate_all_ips)
-	status := "available"
-	if err := r.client.Patch(fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), client.IPAddressUpdate{
-		Status:      &status,
-		Hostname:    nil,
-		Description: nil,
-	}, nil); err != nil && !client.IsNotFound(err) {
+	// Releases the address: IPzilon 3.0 deletes the stored record and the
+	// address becomes free again.
+	if err := releaseIP(ctx, r.client, state.ID.ValueInt64()); err != nil {
 		resp.Diagnostics.AddError("Release IP failed", err.Error())
 	}
 }

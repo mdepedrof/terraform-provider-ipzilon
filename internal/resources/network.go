@@ -52,7 +52,7 @@ func (r *NetworkResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"name":        schema.StringAttribute{Required: true, Description: "Resource name (must be lowercase — the server normalizes all strings)."},
-			"cidr":        schema.StringAttribute{Required: true, Description: "Network CIDR (e.g. 10.0.1.0/24)."},
+			"cidr":        schema.StringAttribute{Required: true, Description: "Network CIDR (e.g. 10.0.1.0/24). Maximum size /8.", PlanModifiers: []planmodifier.String{cidrLimits(false)}},
 			"description": schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
 		},
 	}
@@ -87,7 +87,7 @@ func (r *NetworkResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 	var n client.Network
-	if err := r.client.Post("/networks/", client.NetworkCreate{
+	if err := r.client.Post(ctx, "/networks/", client.NetworkCreate{
 		ScopeID:     plan.ScopeID.ValueInt64(),
 		Name:        plan.Name.ValueString(),
 		CIDR:        plan.CIDR.ValueString(),
@@ -106,7 +106,7 @@ func (r *NetworkResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 	var n client.Network
-	if err := r.client.Get(fmt.Sprintf("/networks/%d", state.ID.ValueInt64()), &n); err != nil {
+	if err := r.client.Get(ctx, fmt.Sprintf("/networks/%d", state.ID.ValueInt64()), &n); err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -129,7 +129,7 @@ func (r *NetworkResource) Update(ctx context.Context, req resource.UpdateRequest
 	name := plan.Name.ValueString()
 	cidr := plan.CIDR.ValueString()
 	var n client.Network
-	if err := r.client.Patch(fmt.Sprintf("/networks/%d", state.ID.ValueInt64()), client.NetworkUpdate{
+	if err := r.client.Patch(ctx, fmt.Sprintf("/networks/%d", state.ID.ValueInt64()), client.NetworkUpdate{
 		ScopeID:     &scopeID,
 		Name:        &name,
 		CIDR:        &cidr,
@@ -147,7 +147,7 @@ func (r *NetworkResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.Delete(fmt.Sprintf("/networks/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
+	if err := r.client.Delete(ctx, fmt.Sprintf("/networks/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
 		resp.Diagnostics.AddError("Delete network failed", err.Error())
 	}
 }

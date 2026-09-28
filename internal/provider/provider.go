@@ -35,7 +35,7 @@ func (p *IPzilon) Metadata(_ context.Context, _ provider.MetadataRequest, resp *
 
 func (p *IPzilon) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manage IP address space in IPzilon — an IPAM for Azure and on-premise networks. Supports sites, hubs, scopes (landing zones and projects), networks, subnets, and individual IP addresses.",
+		Description: "Manage IP address space in IPzilon — an IPAM for Azure and on-premise networks. Supports sites, hubs, scopes (landing zones and projects), networks, subnets, and individual IP addresses. Requires IPzilon >= 3.0.0. Requests rejected with 429 (rate limit) or 503 (server busy) are retried honouring Retry-After for up to 10 minutes per request; each API token has its own rate-limit quota.",
 		Attributes: map[string]schema.Attribute{
 			"api_url": schema.StringAttribute{
 				Optional:    true,
@@ -76,6 +76,10 @@ func (p *IPzilon) Configure(ctx context.Context, req provider.ConfigureRequest, 
 	}
 
 	c := client.New(apiURL, token)
+	if err := c.CheckAPIVersion(); err != nil {
+		resp.Diagnostics.AddError("Unsupported IPzilon version", err.Error())
+		return
+	}
 	resp.DataSourceData = c
 	resp.ResourceData = c
 }

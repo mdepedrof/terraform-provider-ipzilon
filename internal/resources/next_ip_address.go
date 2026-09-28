@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
@@ -40,7 +41,8 @@ func (r *NextIPAddressResource) Schema(_ context.Context, _ resource.SchemaReque
 		Description: "Atomically reserves the next available IP in a subnet. The address is assigned by the server.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
-				Computed: true,
+				Computed:    true,
+				Description: "IPzilon record ID of the reserved address.",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
@@ -64,7 +66,8 @@ func (r *NextIPAddressResource) Schema(_ context.Context, _ resource.SchemaReque
 			"status": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "IP status. Defaults to 'reserved' after allocation. Valid values: available, reserved, used.",
+				Description: "IP status: reserved (default after allocation) or used. To free the address, destroy the resource.",
+				Validators:  []validator.String{ipStatusValidator},
 			},
 			"is_azure_reserved": schema.BoolAttribute{
 				Computed:    true,
@@ -93,14 +96,19 @@ func (r *NextIPAddressResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 	var ip client.IPAddress
-	if err := r.client.Post(fmt.Sprintf("/subnets/%d/reserve-ip", plan.SubnetID.ValueInt64()), nil, &ip); err != nil {
+	if err := r.client.Post(ctx, fmt.Sprintf("/subnets/%d/reserve-ip", plan.SubnetID.ValueInt64()), nil, &ip); err != nil {
+		resp.Diagnostics.AddError("Reserve next IP failed", err.Error())
+		return
+	}
+	id, err := ipIDValue(ip.ID)
+	if err != nil {
 		resp.Diagnostics.AddError("Reserve next IP failed", err.Error())
 		return
 	}
 
 	// Apply hostname/description/status if provided
 	if !plan.Hostname.IsNull() || !plan.Description.IsNull() || !plan.Status.IsNull() {
-		if err := r.client.Patch(fmt.Sprintf("/ips/%d", ip.ID), client.IPAddressUpdate{
+		if err := r.client.Patch(ctx, fmt.Sprintf("/ips/%d", id.ValueInt64()), client.IPAddressUpdate{
 			Hostname:    strPtr(plan.Hostname),
 			Description: strPtr(plan.Description),
 			Status:      strPtr(plan.Status),
@@ -111,7 +119,7 @@ func (r *NextIPAddressResource) Create(ctx context.Context, req resource.CreateR
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, nextIPAddressModel{
-		ID:              types.Int64Value(ip.ID),
+		ID:              id,
 		SubnetID:        types.Int64Value(ip.SubnetID),
 		Hostname:        types.StringPointerValue(ip.Hostname),
 		Description:     types.StringPointerValue(ip.Description),
@@ -128,7 +136,7 @@ func (r *NextIPAddressResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 	var ip client.IPAddress
-	if err := r.client.Get(fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), &ip); err != nil {
+	if err := r.client.Get(ctx, fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), &ip); err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -153,7 +161,7 @@ func (r *NextIPAddressResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 	var ip client.IPAddress
-	if err := r.client.Patch(fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), client.IPAddressUpdate{
+	if err := r.client.Patch(ctx, fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), client.IPAddressUpdate{
 		Hostname:    strPtr(plan.Hostname),
 		Description: strPtr(plan.Description),
 		Status:      strPtr(plan.Status),
@@ -174,12 +182,9 @@ func (r *NextIPAddressResource) Delete(ctx context.Context, req resource.DeleteR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	status := "available"
-	if err := r.client.Patch(fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), client.IPAddressUpdate{
-		Status:      &status,
-		Hostname:    nil,
-		Description: nil,
-	}, nil); err != nil && !client.IsNotFound(err) {
+	// Releases the address: IPzilon 3.0 deletes the stored record and the
+	// address becomes free again.
+	if err := releaseIP(ctx, r.client, state.ID.ValueInt64()); err != nil {
 		resp.Diagnostics.AddError("Release IP failed", err.Error())
 	}
 }
