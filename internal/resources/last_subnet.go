@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
@@ -28,6 +30,23 @@ type lastSubnetModel struct {
 	Name         types.String `tfsdk:"name"`
 	Description  types.String `tfsdk:"description"`
 	CIDR         types.String `tfsdk:"cidr"`
+}
+
+// lastSubnetFromAPI builds the whole state from the API object; it is the only
+// place that fills lastSubnetModel (Create, Read and Update). The model has the
+// same shape as nextSubnetModel, so the conversion is shared.
+func lastSubnetFromAPI(sub client.Subnet) (lastSubnetModel, error) {
+	m, err := nextSubnetFromAPI(sub)
+	return lastSubnetModel(m), err
+}
+
+func setLastSubnetState(ctx context.Context, sub client.Subnet, state *tfsdk.State, diags *diag.Diagnostics) {
+	model, err := lastSubnetFromAPI(sub)
+	if err != nil {
+		diags.AddError("Invalid subnet returned by the API", err.Error())
+		return
+	}
+	diags.Append(state.Set(ctx, model)...)
 }
 
 func (r *LastSubnetResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -105,14 +124,7 @@ func (r *LastSubnetResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddError("Reserve last subnet failed", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, lastSubnetModel{
-		ID:           types.Int64Value(s.ID),
-		NetworkID:    types.Int64Value(s.NetworkID),
-		PrefixLength: plan.PrefixLength,
-		Name:         types.StringValue(s.Name),
-		Description:  types.StringPointerValue(s.Description),
-		CIDR:         types.StringValue(s.CIDR),
-	})...)
+	setLastSubnetState(ctx, s, &resp.State, &resp.Diagnostics)
 }
 
 func (r *LastSubnetResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -130,14 +142,7 @@ func (r *LastSubnetResource) Read(ctx context.Context, req resource.ReadRequest,
 		resp.Diagnostics.AddError("Read subnet failed", err.Error())
 		return
 	}
-	state.Name = types.StringValue(s.Name)
-	state.Description = types.StringPointerValue(s.Description)
-	state.CIDR = types.StringValue(s.CIDR)
-	state.NetworkID = types.Int64Value(s.NetworkID)
-	if prefixLength, err := cidrPrefixLength(s.CIDR); err == nil {
-		state.PrefixLength = types.Int64Value(prefixLength)
-	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	setLastSubnetState(ctx, s, &resp.State, &resp.Diagnostics)
 }
 
 func (r *LastSubnetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -157,9 +162,7 @@ func (r *LastSubnetResource) Update(ctx context.Context, req resource.UpdateRequ
 		resp.Diagnostics.AddError("Update subnet failed", err.Error())
 		return
 	}
-	state.Name = types.StringValue(s.Name)
-	state.Description = types.StringPointerValue(s.Description)
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	setLastSubnetState(ctx, s, &resp.State, &resp.Diagnostics)
 }
 
 func (r *LastSubnetResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

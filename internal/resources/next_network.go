@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
@@ -28,6 +30,33 @@ type nextNetworkModel struct {
 	Name         types.String `tfsdk:"name"`
 	Description  types.String `tfsdk:"description"`
 	CIDR         types.String `tfsdk:"cidr"`
+}
+
+// nextNetworkFromAPI builds the whole state from the API object; it is the only
+// place that fills nextNetworkModel (Create, Read and Update). prefix_length is
+// derived from the CIDR the API returns.
+func nextNetworkFromAPI(n client.Network) (nextNetworkModel, error) {
+	prefixLength, err := prefixLengthValue(n.CIDR)
+	if err != nil {
+		return nextNetworkModel{}, err
+	}
+	return nextNetworkModel{
+		ID:           types.Int64Value(n.ID),
+		ScopeID:      types.Int64Value(n.ScopeID),
+		PrefixLength: prefixLength,
+		Name:         types.StringValue(n.Name),
+		Description:  types.StringPointerValue(n.Description),
+		CIDR:         types.StringValue(n.CIDR),
+	}, nil
+}
+
+func setNextNetworkState(ctx context.Context, n client.Network, state *tfsdk.State, diags *diag.Diagnostics) {
+	model, err := nextNetworkFromAPI(n)
+	if err != nil {
+		diags.AddError("Invalid network returned by the API", err.Error())
+		return
+	}
+	diags.Append(state.Set(ctx, model)...)
 }
 
 func (r *NextNetworkResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -105,14 +134,7 @@ func (r *NextNetworkResource) Create(ctx context.Context, req resource.CreateReq
 		resp.Diagnostics.AddError("Reserve next network failed", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, nextNetworkModel{
-		ID:           types.Int64Value(n.ID),
-		ScopeID:      types.Int64Value(n.ScopeID),
-		PrefixLength: plan.PrefixLength,
-		Name:         types.StringValue(n.Name),
-		Description:  types.StringPointerValue(n.Description),
-		CIDR:         types.StringValue(n.CIDR),
-	})...)
+	setNextNetworkState(ctx, n, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextNetworkResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -130,14 +152,7 @@ func (r *NextNetworkResource) Read(ctx context.Context, req resource.ReadRequest
 		resp.Diagnostics.AddError("Read network failed", err.Error())
 		return
 	}
-	state.Name = types.StringValue(n.Name)
-	state.Description = types.StringPointerValue(n.Description)
-	state.CIDR = types.StringValue(n.CIDR)
-	state.ScopeID = types.Int64Value(n.ScopeID)
-	if prefixLength, err := cidrPrefixLength(n.CIDR); err == nil {
-		state.PrefixLength = types.Int64Value(prefixLength)
-	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	setNextNetworkState(ctx, n, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextNetworkResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -157,9 +172,7 @@ func (r *NextNetworkResource) Update(ctx context.Context, req resource.UpdateReq
 		resp.Diagnostics.AddError("Update network failed", err.Error())
 		return
 	}
-	state.Name = types.StringValue(n.Name)
-	state.Description = types.StringPointerValue(n.Description)
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	setNextNetworkState(ctx, n, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextNetworkResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
