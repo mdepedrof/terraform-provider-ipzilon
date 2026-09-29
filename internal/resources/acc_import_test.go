@@ -10,9 +10,11 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/provider"
@@ -152,22 +154,72 @@ func accCheckDestroy(s *terraform.State) error {
 }
 
 // accImportTest runs the create → import (verify) → empty plan cycle for the
-// resource "<resourceType>.acc" declared in config.
-func accImportTest(t *testing.T, resourceType, config string) {
+// resource "<resourceType>.acc" whose HCL is resourceHCL, on top of parents
+// (the HCL of the objects it depends on, "" if none).
+//
+// Steps 1–3 create it, import it in a scratch state and compare it with the
+// state Create left, and plan again. Steps 4–5 are the real migration flow:
+// the resource leaves the state without being destroyed (removed block) and
+// is imported back with an import block; the plan that the framework runs
+// after that apply must be empty, which is exactly what failed when Read left
+// an attribute empty (e.g. subnet_id forcing a replacement).
+func accImportTest(t *testing.T, resourceType, parents, resourceHCL string) {
 	t.Helper()
 	testAccPreCheck(t)
+
+	address := resourceType + ".acc"
+	cfg := parents + resourceHCL
+	var id string
+	vars := map[string]config.Variable{"import_id": config.StringVariable("")}
+	importConfig := `
+variable "import_id" {
+  type = string
+}
+
+import {
+  to = ` + address + `
+  id = var.import_id
+}
+` + parents + resourceHCL
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		TerraformVersionChecks:   []tfversion.TerraformVersionCheck{tfversion.SkipBelow(tfversion.Version1_7_0)},
 		CheckDestroy:             accCheckDestroy,
 		Steps: []resource.TestStep{
-			{Config: config},
 			{
-				Config:            config,
-				ResourceName:      resourceType + ".acc",
+				Config: cfg,
+				Check: func(s *terraform.State) error {
+					rs, ok := s.RootModule().Resources[address]
+					if !ok {
+						return fmt.Errorf("%s not found in state", address)
+					}
+					id = rs.Primary.ID
+					return nil
+				},
+			},
+			{
+				Config:            cfg,
+				ResourceName:      address,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			{Config: config, PlanOnly: true},
+			{Config: cfg, PlanOnly: true},
+			{
+				Config: parents + `
+removed {
+  from = ` + address + `
+  lifecycle {
+    destroy = false
+  }
+}
+`,
+			},
+			{
+				PreConfig:       func() { vars["import_id"] = config.StringVariable(id) },
+				Config:          importConfig,
+				ConfigVariables: vars,
+			},
 		},
 	})
 }
@@ -181,7 +233,7 @@ func TestAccImport_Hub(t *testing.T) {
 	testAccPreCheck(t)
 	name := accName()
 	n := accNetworks(t)
-	accImportTest(t, "ipzilon_hub", fmt.Sprintf(`
+	accImportTest(t, "ipzilon_hub", "", fmt.Sprintf(`
 resource "ipzilon_hub" "acc" {
   site_id       = %s
   name          = "%s"
@@ -196,7 +248,7 @@ func TestAccImport_Scope(t *testing.T) {
 	}
 	testAccPreCheck(t)
 	name := accName()
-	accImportTest(t, "ipzilon_scope", accChain(t, name, "hub")+fmt.Sprintf(`
+	accImportTest(t, "ipzilon_scope", accChain(t, name, "hub"), fmt.Sprintf(`
 resource "ipzilon_scope" "acc" {
   hub_id = ipzilon_hub.acc.id
   name   = "%s"
@@ -212,7 +264,7 @@ func TestAccImport_Network(t *testing.T) {
 	}
 	testAccPreCheck(t)
 	name := accName()
-	accImportTest(t, "ipzilon_network", accChain(t, name, "scope")+fmt.Sprintf(`
+	accImportTest(t, "ipzilon_network", accChain(t, name, "scope"), fmt.Sprintf(`
 resource "ipzilon_network" "acc" {
   scope_id = ipzilon_scope.acc.id
   name     = "%s"
@@ -227,7 +279,7 @@ func TestAccImport_Subnet(t *testing.T) {
 	}
 	testAccPreCheck(t)
 	name := accName()
-	accImportTest(t, "ipzilon_subnet", accChain(t, name, "network")+fmt.Sprintf(`
+	accImportTest(t, "ipzilon_subnet", accChain(t, name, "network"), fmt.Sprintf(`
 resource "ipzilon_subnet" "acc" {
   network_id = ipzilon_network.acc.id
   name       = "%s"
@@ -242,7 +294,7 @@ func TestAccImport_IPAddress(t *testing.T) {
 	}
 	testAccPreCheck(t)
 	name := accName()
-	accImportTest(t, "ipzilon_ip_address", accChain(t, name, "subnet")+fmt.Sprintf(`
+	accImportTest(t, "ipzilon_ip_address", accChain(t, name, "subnet"), fmt.Sprintf(`
 resource "ipzilon_ip_address" "acc" {
   subnet_id = ipzilon_subnet.acc.id
   address   = "%s"
@@ -258,7 +310,7 @@ func TestAccImport_NextIPAddress(t *testing.T) {
 	}
 	testAccPreCheck(t)
 	name := accName()
-	accImportTest(t, "ipzilon_next_ip_address", accChain(t, name, "subnet")+fmt.Sprintf(`
+	accImportTest(t, "ipzilon_next_ip_address", accChain(t, name, "subnet"), fmt.Sprintf(`
 resource "ipzilon_next_ip_address" "acc" {
   subnet_id = ipzilon_subnet.acc.id
   hostname  = "%s"
@@ -272,7 +324,7 @@ func TestAccImport_NextSubnet(t *testing.T) {
 	}
 	testAccPreCheck(t)
 	name := accName()
-	accImportTest(t, "ipzilon_next_subnet", accChain(t, name, "network")+fmt.Sprintf(`
+	accImportTest(t, "ipzilon_next_subnet", accChain(t, name, "network"), fmt.Sprintf(`
 resource "ipzilon_next_subnet" "acc" {
   network_id    = ipzilon_network.acc.id
   prefix_length = 26
@@ -287,7 +339,7 @@ func TestAccImport_LastSubnet(t *testing.T) {
 	}
 	testAccPreCheck(t)
 	name := accName()
-	accImportTest(t, "ipzilon_last_subnet", accChain(t, name, "network")+fmt.Sprintf(`
+	accImportTest(t, "ipzilon_last_subnet", accChain(t, name, "network"), fmt.Sprintf(`
 resource "ipzilon_last_subnet" "acc" {
   network_id    = ipzilon_network.acc.id
   prefix_length = 26
@@ -302,7 +354,7 @@ func TestAccImport_NextNetwork(t *testing.T) {
 	}
 	testAccPreCheck(t)
 	name := accName()
-	accImportTest(t, "ipzilon_next_network", accChain(t, name, "scope")+fmt.Sprintf(`
+	accImportTest(t, "ipzilon_next_network", accChain(t, name, "scope"), fmt.Sprintf(`
 resource "ipzilon_next_network" "acc" {
   scope_id      = ipzilon_scope.acc.id
   prefix_length = 24

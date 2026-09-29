@@ -164,3 +164,19 @@ US2 tests:      T009 ‖ T010 ‖ T011  (misma tabla: aplicar en serie si se edi
 - **MVP**: Phase 1–3 (US1) desbloquea a `camaras` a nivel de código y deja el test que reproduce el bug.
 - **Incremental**: US2 (9/9 recursos) → US3 (red de seguridad) → US4 (aceptación) → US5 (documentación de migradas) → US6 (release v3.0.1).
 - **Orden recomendado**: TDD estricto en cada fase (test rojo antes de la implementación) y un commit por historia.
+
+---
+
+## Phase 9: Convergence
+
+- [X] T031 CRITICAL Resolver la excepción de `terraform-plugin-sdk/v2`: `go.mod` la incluye como dependencia indirecta de `terraform-plugin-testing` (solo tests; `go list -deps .` no la enlaza en el binario). Dejar constancia en `CONTRIBUTING.md` de que solo se admite como transitiva de test y proponer al propietario una enmienda PATCH de `.specify/memory/constitution.md` que lo aclare, per Constitution (Restricciones técnicas) (contradicts)
+- [X] T032 Extender `TestNextIPAddressStateMatchesAcrossOperations` en `internal/resources/read_after_import_test.go` a los nueve recursos de `importCases` (Create, Read y Update deben dejar el mismo estado para el mismo objeto de la API, con el plan/estado construidos desde el esquema) per FR-004 y US2/AC2 (partial)
+- [ ] T033 Añadir en `internal/resources/acc_import_test.go` un paso de import → plan vacío real por recurso (retirar el recurso del estado con un bloque `removed { lifecycle { destroy = false } }`, importarlo con un bloque `import` cuyo `id` llega por variable rellenada en `PreConfig` y comprobar `plancheck.ExpectEmptyPlan()`), y ejecutarlo con `TF_ACC=1 make testacc` contra un IPzilon real (código escrito y validado con Terraform 1.16 contra un servidor falso solo de hubs; **falta la ejecución real**, junto con T029), per FR-007 y US4/AC1 (partial)
+- [X] T034 [P] Añadir a `internal/resources/read_after_import_test.go` un test de Update en el que el PATCH devuelva valores normalizados distintos a los del plan (p. ej. `hostname` en minúsculas) y comprobar que el estado refleja lo devuelto por la API en `next_ip_address`, `next_subnet` y `next_network`, per Edge Cases de spec.md (partial)
+- [X] T035 [P] Actualizar `specs/002-read-completo-tras-import/quickstart.md` §3 con las variables `IPZILON_TEST_SITE_ID` e `IPZILON_TEST_ADDRESS_SPACE` (un /16 IPv4 libre) que exigen los tests de aceptación, per plan: Technical Context (partial)
+
+---
+
+## Phase 10: Convergence
+
+- [X] T036 CRITICAL Cerrar la excepción de `terraform-plugin-sdk/v2` frente al MUST NOT de la constitución: incluir en la descripción de la PR de T028 la justificación explícita (dependencia indirecta solo de test vía `terraform-plugin-testing`, no enlazada en el binario, comprobable con `go list -deps . | grep terraform-plugin-sdk`) y, si el propietario lo aprueba, enmendar `.specify/memory/constitution.md` a v1.0.2 aclarando que la restricción aplica al código del provider y admite la dependencia transitiva de test, per Constitution (Restricciones técnicas y Governance) (contradicts)

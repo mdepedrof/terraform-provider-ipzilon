@@ -66,6 +66,14 @@ Every resource MUST leave a complete state after `terraform import` (constitutio
 5. Data sources never read the previous state (`grep -n "req.State" internal/datasources/*.go`
    must return nothing).
 
+## Dependencies
+
+The provider only uses `terraform-plugin-framework` (constitution, technical constraints).
+`terraform-plugin-testing`, used only in `_test.go` files for the acceptance tests, depends on
+`terraform-plugin-sdk/v2`, which therefore appears as an *indirect* dependency in `go.mod`. It is
+accepted only as a transitive test dependency: no provider code may import it, and it must not be
+linked into the binary (`go list -deps . | grep terraform-plugin-sdk` must return nothing).
+
 ## Pull requests
 
 - One PR per logical change

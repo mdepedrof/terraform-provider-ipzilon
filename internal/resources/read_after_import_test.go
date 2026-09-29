@@ -279,61 +279,103 @@ func anyPathServer(t *testing.T, body string) *client.Client {
 	return &client.Client{BaseURL: srv.URL, Token: "test", HTTPClient: http.DefaultClient}
 }
 
-// planFor builds a plan where the given attributes are set, the ones in
-// unknown are unknown (Computed values the server fills in) and the rest null.
-func planFor(t *testing.T, schemaResp resource.SchemaResponse, set map[string]tftypes.Value, unknown ...string) tfsdk.Plan {
+// readState runs Read from an id-only state against an API that answers body
+// and returns the resulting state.
+func readState(t *testing.T, tc importCase, body string) tfsdk.State {
 	t.Helper()
-	objType := schemaResp.Schema.Type().TerraformType(context.Background()).(tftypes.Object)
-	vals := make(map[string]tftypes.Value, len(objType.AttributeTypes))
-	for name, typ := range objType.AttributeTypes {
-		vals[name] = tftypes.NewValue(typ, nil)
+	r, schemaResp := configured(t, tc, anyPathServer(t, body))
+	resp := resource.ReadResponse{State: stateWithOnlyID(t, schemaResp, tc.id)}
+	r.Read(context.Background(), resource.ReadRequest{State: stateWithOnlyID(t, schemaResp, tc.id)}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Read: %v", resp.Diagnostics)
 	}
-	for _, name := range unknown {
-		vals[name] = tftypes.NewValue(objType.AttributeTypes[name], tftypes.UnknownValue)
-	}
-	for name, v := range set {
-		vals[name] = v
-	}
-	return tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(objType, vals)}
+	return resp.State
 }
 
-// TestNextIPAddressStateMatchesAcrossOperations checks that Create, Read and
-// Update leave exactly the same state for the same API object (FR-004).
-func TestNextIPAddressStateMatchesAcrossOperations(t *testing.T) {
+// TestStateMatchesAcrossOperations checks, for all nine resources, that Create,
+// Read and Update leave exactly the same state for the same API object
+// (FR-004): the state comes only from the API response, never from a mix with
+// the plan or the previous state.
+func TestStateMatchesAcrossOperations(t *testing.T) {
 	ctx := context.Background()
-	tc := importCases[0]
-	r, schemaResp := configured(t, tc, anyPathServer(t, tc.body))
+	for _, tc := range importCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, schemaResp := configured(t, tc, anyPathServer(t, tc.body))
+			want := readState(t, tc, tc.body)
 
-	// Create: only subnet_id configured, everything else computed.
-	createPlan := planFor(t, schemaResp,
-		map[string]tftypes.Value{"subnet_id": tftypes.NewValue(tftypes.Number, big.NewFloat(65))},
-		"id", "address", "is_azure_reserved", "hostname", "description", "status")
-	createResp := resource.CreateResponse{State: tfsdk.State{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)}}
-	r.Create(ctx, resource.CreateRequest{Plan: createPlan}, &createResp)
-	if createResp.Diagnostics.HasError() {
-		t.Fatalf("Create: %v", createResp.Diagnostics)
-	}
+			// The plan carries the values the user configured; here every
+			// attribute is known and equal to the API object.
+			plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: want.Raw}
+			nullState := tfsdk.State{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)}
 
-	readResp := resource.ReadResponse{State: stateWithOnlyID(t, schemaResp, tc.id)}
-	r.Read(ctx, resource.ReadRequest{State: stateWithOnlyID(t, schemaResp, tc.id)}, &readResp)
-	if readResp.Diagnostics.HasError() {
-		t.Fatalf("Read: %v", readResp.Diagnostics)
-	}
+			createResp := resource.CreateResponse{State: nullState}
+			r.Create(ctx, resource.CreateRequest{Plan: plan}, &createResp)
+			if createResp.Diagnostics.HasError() {
+				t.Fatalf("Create: %v", createResp.Diagnostics)
+			}
+			updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schemaResp.Schema, Raw: want.Raw}}
+			r.Update(ctx, resource.UpdateRequest{Plan: plan, State: stateWithOnlyID(t, schemaResp, tc.id)}, &updateResp)
+			if updateResp.Diagnostics.HasError() {
+				t.Fatalf("Update: %v", updateResp.Diagnostics)
+			}
 
-	updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schemaResp.Schema, Raw: createResp.State.Raw}}
-	r.Update(ctx, resource.UpdateRequest{
-		Plan:  tfsdk.Plan{Schema: schemaResp.Schema, Raw: createResp.State.Raw},
-		State: stateWithOnlyID(t, schemaResp, tc.id),
-	}, &updateResp)
-	if updateResp.Diagnostics.HasError() {
-		t.Fatalf("Update: %v", updateResp.Diagnostics)
+			if !createResp.State.Raw.Equal(want.Raw) {
+				t.Errorf("Create and Read states differ:\ncreate=%s\nread=%s", createResp.State.Raw, want.Raw)
+			}
+			if !updateResp.State.Raw.Equal(want.Raw) {
+				t.Errorf("Update and Read states differ:\nupdate=%s\nread=%s", updateResp.State.Raw, want.Raw)
+			}
+		})
 	}
+}
 
-	if !createResp.State.Raw.Equal(readResp.State.Raw) {
-		t.Errorf("Create and Read states differ:\ncreate=%s\nread=%s", createResp.State.Raw, readResp.State.Raw)
+// TestUpdateMirrorsNormalizedAPIResponse covers the case where the PATCH
+// returns values different from the planned ones (the server normalizes
+// them): the state after Update must be exactly what the API returned.
+func TestUpdateMirrorsNormalizedAPIResponse(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		row   string
+		patch string
+	}{
+		{"ipzilon_next_ip_address", `{"id":2204,"subnet_id":65,"address":"10.1.4.10","status":"used","is_azure_reserved":false,"hostname":"normalized-host","description":"normalized"}`},
+		{"ipzilon_next_subnet", `{"id":11,"network_id":3,"name":"normalized","cidr":"10.1.4.0/24","description":"normalized"}`},
+		{"ipzilon_next_network", `{"id":21,"scope_id":8,"name":"normalized","cidr":"10.2.0.0/22","description":"normalized"}`},
 	}
-	if !updateResp.State.Raw.Equal(readResp.State.Raw) {
-		t.Errorf("Update and Read states differ:\nupdate=%s\nread=%s", updateResp.State.Raw, readResp.State.Raw)
+	for _, c := range cases {
+		t.Run(c.row, func(t *testing.T) {
+			var tc importCase
+			for _, ic := range importCases {
+				if ic.name == c.row {
+					tc = ic
+				}
+			}
+			original := readState(t, tc, tc.body)
+			want := readState(t, tc, c.patch)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodPatch {
+					_, _ = w.Write([]byte(c.patch))
+					return
+				}
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(srv.Close)
+			r, schemaResp := configured(t, tc, &client.Client{BaseURL: srv.URL, Token: "test", HTTPClient: http.DefaultClient})
+
+			resp := resource.UpdateResponse{State: tfsdk.State{Schema: schemaResp.Schema, Raw: original.Raw}}
+			r.Update(ctx, resource.UpdateRequest{
+				Plan:  tfsdk.Plan{Schema: schemaResp.Schema, Raw: original.Raw},
+				State: tfsdk.State{Schema: schemaResp.Schema, Raw: original.Raw},
+			}, &resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Update: %v", resp.Diagnostics)
+			}
+			if !resp.State.Raw.Equal(want.Raw) {
+				t.Errorf("state after Update does not mirror the API response:\ngot =%s\nwant=%s", resp.State.Raw, want.Raw)
+			}
+		})
 	}
 }
 

@@ -22,6 +22,8 @@ Comentar temporalmente el relleno de `subnet_id` en `nextIPFromAPI` y ejecutar
 
 ```bash
 export IPZILON_API_URL=... IPZILON_TOKEN=...   # instancia de pruebas
+export IPZILON_TEST_SITE_ID=<id de un site existente>
+export IPZILON_TEST_ADDRESS_SPACE=10.250.0.0/16  # /16 IPv4 libre
 make testacc
 ```
 
