@@ -196,17 +196,22 @@ func (r *IPAddressResource) Update(ctx context.Context, req resource.UpdateReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	status := plan.Status.ValueString()
 	var ip client.IPAddress
-	if err := r.client.Patch(ctx, fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), client.IPAddressUpdate{
-		Status:      &status,
-		Hostname:    strPtr(plan.Hostname),
-		Description: strPtr(plan.Description),
-	}, &ip); err != nil {
+	if err := r.client.Patch(ctx, fmt.Sprintf("/ips/%d", state.ID.ValueInt64()), ipAddressUpdateBody(plan), &ip); err != nil {
 		resp.Diagnostics.AddError("Update IP failed", err.Error())
 		return
 	}
 	r.setState(ctx, ip, &resp.State, &resp.Diagnostics)
+}
+
+// ipAddressUpdateBody builds the PATCH body. An unset status is unknown in the
+// plan and is left out: sending "" is rejected by the API with a 422.
+func ipAddressUpdateBody(plan ipAddressModel) client.IPAddressUpdate {
+	return client.IPAddressUpdate{
+		Status:      strPtr(plan.Status),
+		Hostname:    strPtr(plan.Hostname),
+		Description: strPtr(plan.Description),
+	}
 }
 
 func (r *IPAddressResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

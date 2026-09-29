@@ -19,9 +19,10 @@ import (
 
 // Retry defaults for 429 (rate limited) and 503 (server busy) responses.
 // Retries stop when the accumulated wait of a request would exceed
-// defaultRetryMaxElapsed or after defaultRetryMax retries, whichever first.
+// defaultRetryMaxElapsed; defaultRetryMax is only a safety net sized so that
+// it never ends a request before that budget (IPzilon may answer Retry-After: 1).
 const (
-	defaultRetryMax        = 30
+	defaultRetryMax        = 1000
 	defaultRetryMaxElapsed = 10 * time.Minute
 	defaultRetryBaseWait   = time.Second
 	defaultRetryMaxWait    = 60 * time.Second

@@ -35,7 +35,7 @@ Respuesta esperada: `{"items": [...], "total": <int>}`. Si el cuerpo es una list
 | 503 | Sí | Igual |
 | Resto (2xx, 3xx, 4xx, 5xx ≠ 503, errores de red) | No | — |
 
-Se reintenta mientras la espera acumulada sea ≤ 10 min (máx. 30 reintentos). Error final:
+Se reintenta mientras la espera acumulada sea ≤ 10 min (máx. 1000 reintentos, solo como red de seguridad). Error final:
 `API error <code>: <msg> (gave up after N retries in <duración>)`.
 Mensaje de error: `detail` o, si no existe, `error` (429 trae `{"error": …}`), o el cuerpo crudo.
 

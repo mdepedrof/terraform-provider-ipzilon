@@ -133,3 +133,27 @@ func TestIPStatusValidation(t *testing.T) {
 		}
 	}
 }
+
+// TestIPAddressUpdateBody checks that an unset status (unknown in the plan) is
+// not sent: the API rejects status "" with a 422.
+func TestIPAddressUpdateBody(t *testing.T) {
+	for _, tc := range []struct {
+		status types.String
+		want   string
+	}{
+		{types.StringUnknown(), `{"hostname":"gw","description":null}`},
+		{types.StringValue("reserved"), `{"status":"reserved","hostname":"gw","description":null}`},
+	} {
+		b, err := json.Marshal(ipAddressUpdateBody(ipAddressModel{
+			Status:      tc.status,
+			Hostname:    types.StringValue("gw"),
+			Description: types.StringUnknown(),
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(b) != tc.want {
+			t.Errorf("body = %s, want %s", b, tc.want)
+		}
+	}
+}

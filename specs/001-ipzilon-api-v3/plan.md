@@ -36,7 +36,7 @@ según [quickstart.md](./quickstart.md).
 **Performance Goals**: ≤ ~2 peticiones por recurso gestionado (SC-005); listados con
 `limit=1000` (una /16 = 66 peticiones).
 
-**Constraints**: reintentos acotados (≤ 10 min acumulados y ≤ 30 reintentos por petición, espera ≤ 60 s cada una, cancelables);
+**Constraints**: reintentos acotados (≤ 10 min acumulados y ≤ 1000 reintentos por petición, espera ≤ 60 s cada una, cancelables);
 no calcular asignaciones en cliente (Principio II); HTTP solo en `internal/client`.
 
 **Scale/Scope**: 2 ficheros de cliente, 6 data sources, 9 recursos (4 con cambios de lógica,

@@ -52,6 +52,10 @@ resource "ipzilon_next_subnet" "web" {
   network_id    = ipzilon_network.spoke.id
   prefix_length = 27
   name          = "web-tier"
+
+  # Without it both are created in parallel and may race for the same block:
+  # the first free /27 is the dmz one.
+  depends_on = [ipzilon_subnet.dmz]
 }
 
 # Atomically reserve the last free /27
@@ -74,6 +78,10 @@ resource "ipzilon_next_ip_address" "app_vm" {
   subnet_id   = ipzilon_next_subnet.web.id
   hostname    = "app-vm-01"
   description = "Application VM"
+
+  # Without it both are created in parallel and may race for the same address:
+  # the first free one is the gateway's.
+  depends_on = [ipzilon_ip_address.gateway]
 }
 
 # --- Data sources ---
@@ -103,6 +111,9 @@ data "ipzilon_subnets" "all_subnets" {
 data "ipzilon_ip_addresses" "free_ips" {
   subnet_id = ipzilon_next_subnet.web.id
   status    = "available"
+
+  # Read after the addresses above are occupied, not before.
+  depends_on = [ipzilon_ip_address.gateway, ipzilon_next_ip_address.app_vm]
 }
 
 # Outputs

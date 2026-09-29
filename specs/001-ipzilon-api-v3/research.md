@@ -42,8 +42,9 @@ en la rama `feat/002-performance-scale-audit` (verificado donde se indica).
 
 - **Decision**: bucle de reintento propio dentro de `Client.do()`, sin dependencia nueva.
   - Reintenta **solo** 429 y 503 mientras la espera acumulada de esa petición no supere
-    **10 min** (`retryMaxElapsed`), con un máximo de **30 reintentos** (`retryMax`) como red de
-    seguridad. Motivo: con un cupo bajo y `-parallelism=10`, varias peticiones compiten por cada
+    **10 min** (`retryMaxElapsed`), con un máximo de **1000 reintentos** (`retryMax`) como red de
+    seguridad, dimensionado para no cortar antes de los 10 min: IPzilon responde `Retry-After: 1`
+    con la ventana saturada y, en la validación de V3, un tope de 30 agotaba peticiones en 30 s. Motivo: con un cupo bajo y `-parallelism=10`, varias peticiones compiten por cada
     hueco de la ventana deslizante y un tope de 5 reintentos podría agotarse por pura
     competencia (SC-003).
   - Espera = `Retry-After` (segundos enteros; también se acepta fecha HTTP) si existe; si no,

@@ -139,7 +139,10 @@ func TestDo_GivesUpAfterMaxElapsed(t *testing.T) {
 	}
 }
 
-func TestDo_GivesUpAfterMaxRetries(t *testing.T) {
+// TestDo_ShortRetryAfterUsesWholeBudget checks that a sustained Retry-After: 1
+// (a saturated sliding window) is retried for the whole 10 minutes: the retry
+// count must not end the request first.
+func TestDo_ShortRetryAfterUsesWholeBudget(t *testing.T) {
 	srv, calls, _ := sequenceServer(t, []response{
 		{code: 429, body: `{"error":"Rate limit exceeded"}`, retryAfter: "1"},
 	})
@@ -149,10 +152,29 @@ func TestDo_GivesUpAfterMaxRetries(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if *calls != 31 {
-		t.Errorf("calls = %d, want 31 (30 retries)", *calls)
+	if *calls != 601 {
+		t.Errorf("calls = %d, want 601 (600 retries of 1s = 10m)", *calls)
 	}
-	if !strings.Contains(err.Error(), "(gave up after 30 retries in 30s)") {
+	if !strings.Contains(err.Error(), "(gave up after 600 retries in 10m0s)") {
+		t.Errorf("err = %q, want gave-up suffix", err)
+	}
+}
+
+func TestDo_GivesUpAfterMaxRetries(t *testing.T) {
+	srv, calls, _ := sequenceServer(t, []response{
+		{code: 429, body: `{"error":"Rate limit exceeded"}`, retryAfter: "1"},
+	})
+	c, _ := newTestClient(srv)
+	c.retryMax = 3
+
+	err := c.Get(context.Background(), "/x", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if *calls != 4 {
+		t.Errorf("calls = %d, want 4 (3 retries)", *calls)
+	}
+	if !strings.Contains(err.Error(), "(gave up after 3 retries in 3s)") {
 		t.Errorf("err = %q, want gave-up suffix", err)
 	}
 }

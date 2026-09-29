@@ -315,7 +315,8 @@ Principio I (validaciones de forma).
 - Los listados por padre caben en una página en los inventarios medidos, pero el provider pagina
   igualmente todos los listados para no depender de ello.
 - Valores de reintento por defecto: se reintenta mientras la espera acumulada por petición no
-  supere 10 minutos (con un máximo de 30 reintentos como red de seguridad), y cada espera se
+  supere 10 minutos (con un máximo de 1000 reintentos como red de seguridad, dimensionado para no
+  cortar antes de los 10 minutos aunque la API indique esperas de 1 s), y cada espera se
   acota a 60 s; no se expone como configuración del provider en esta versión.
 - Los endpoints de listado no consumidos por el provider (usuarios, tokens, alertas, dashboard,
   consumidores de contenedor, `/cidrs/`) y la edición/borrado masivos de direcciones quedan fuera

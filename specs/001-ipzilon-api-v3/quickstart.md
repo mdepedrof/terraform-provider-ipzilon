@@ -36,11 +36,11 @@ data "ipzilon_ip_addresses" "free" {
   status    = "available"
 }
 data "ipzilon_hubs" "by_site"      { site_id = var.site_id }
-output "n_all" { value = length(data.ipzilon_ip_addresses.all.items) }   # 1024
+output "n_all" { value = length(data.ipzilon_ip_addresses.all.items) }   # 1023
 output "free_ids_null" { value = alltrue([for i in data.ipzilon_ip_addresses.free.items : i.id == null]) }
 ```
 
-Esperado: `n_all` = tamaño de la subred; ninguna dirección repetida; `free_ids_null = true`
+Esperado: `n_all` = tamaño de la subred menos la dirección de red, que la API no lista (1023 en una /22), y igual al `total` de la API; ninguna dirección repetida; `free_ids_null = true`
 salvo libres anotadas; `ipzilon_hubs` devuelve lo mismo que la UI.
 
 ## V2 — `ipzilon_ip_address` (US2)
