@@ -1,5 +1,12 @@
 package client
 
+// Page is the envelope IPzilon >= 3.0 uses for every listing. Total is the
+// number of items matching the filter, not the number returned.
+type Page[T any] struct {
+	Items []T `json:"items"`
+	Total int `json:"total"`
+}
+
 // Site
 
 type Site struct {
@@ -116,8 +123,9 @@ type SubnetUpdate struct {
 	CIDR        *string `json:"cidr,omitempty"`
 	Description *string `json:"description"`
 	// Force skips the server's confirmation prompt for a CIDR change that
-	// would delete IP records that are not "available" (used/reserved).
-	// See SubnetResource.Update: the provider always sets this to true.
+	// would release stored addresses left outside the new range (addresses
+	// still inside keep their record). See SubnetResource.Update: the
+	// provider always sets this to true.
 	Force bool `json:"force,omitempty"`
 }
 
@@ -130,7 +138,9 @@ type AllocateSubnetBody struct {
 // IPAddress
 
 type IPAddress struct {
-	ID              int64   `json:"id"`
+	// ID is nil for free addresses: since IPzilon 3.0 only used, reserved or
+	// annotated addresses have a stored record.
+	ID              *int64  `json:"id"`
 	SubnetID        int64   `json:"subnet_id"`
 	Address         string  `json:"address"`
 	Status          string  `json:"status"`
@@ -143,4 +153,13 @@ type IPAddressUpdate struct {
 	Status      *string `json:"status,omitempty"`
 	Hostname    *string `json:"hostname"`
 	Description *string `json:"description"`
+}
+
+// IPAddressRegister is the body of POST /subnets/{id}/ips, the way to occupy a
+// specific address. Status is always sent: the API defaults to "available".
+type IPAddressRegister struct {
+	Address     string  `json:"address"`
+	Status      string  `json:"status"`
+	Hostname    *string `json:"hostname,omitempty"`
+	Description *string `json:"description,omitempty"`
 }

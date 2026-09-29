@@ -36,3 +36,9 @@ go.work.sum
 # Claude Code (uso interno, no versionar)
 .claude/
 _plan/
+
+# Terraform (ejemplos ejecutados en local)
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl

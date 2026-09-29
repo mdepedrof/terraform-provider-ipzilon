@@ -24,7 +24,7 @@ resource "ipzilon_next_ip_address" "app_vm" {
 # Available attributes after apply:
 # ipzilon_next_ip_address.app_vm.address          → "10.0.1.4"
 # ipzilon_next_ip_address.app_vm.hostname         → "app-vm-01"
-# ipzilon_next_ip_address.app_vm.status           → "used"
+# ipzilon_next_ip_address.app_vm.status           → "reserved"
 # ipzilon_next_ip_address.app_vm.is_azure_reserved → false
 ```
 
@@ -39,12 +39,12 @@ resource "ipzilon_next_ip_address" "app_vm" {
 
 - `description` (String) Free-text description.
 - `hostname` (String) Hostname for this IP — use as the semantic name for the address.
-- `status` (String) IP status. Defaults to 'reserved' after allocation. Valid values: available, reserved, used.
+- `status` (String) IP status: reserved (default after allocation) or used. To free the address, destroy the resource.
 
 ### Read-Only
 
 - `address` (String) Reserved IP address (computed by server).
-- `id` (Number) The ID of this resource.
+- `id` (Number) IPzilon record ID of the reserved address.
 - `is_azure_reserved` (Boolean) True for IPs automatically reserved by Azure (.1 gateway, .2/.3 DNS, broadcast).
 
 ## Import

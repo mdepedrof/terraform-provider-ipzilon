@@ -52,7 +52,7 @@ func (r *HubResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				},
 			},
 			"name":          schema.StringAttribute{Required: true, Description: "Resource name (must be lowercase — the server normalizes all strings)."},
-			"address_space": schema.StringAttribute{Optional: true, Computed: true, Description: "Hub address space CIDR (e.g. 10.0.0.0/16)."},
+			"address_space": schema.StringAttribute{Optional: true, Computed: true, Description: "Hub address space CIDR (e.g. 10.0.0.0/16). Maximum size /8.", PlanModifiers: []planmodifier.String{cidrLimits(false)}},
 			"location":      schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text location label (e.g. West Europe)."},
 			"description":   schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
 		},
@@ -89,7 +89,7 @@ func (r *HubResource) Create(ctx context.Context, req resource.CreateRequest, re
 		return
 	}
 	var h client.Hub
-	if err := r.client.Post("/hubs/", client.HubCreate{
+	if err := r.client.Post(ctx, "/hubs/", client.HubCreate{
 		SiteID:       plan.SiteID.ValueInt64(),
 		Name:         plan.Name.ValueString(),
 		AddressSpace: strPtr(plan.AddressSpace),
@@ -109,7 +109,7 @@ func (r *HubResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 		return
 	}
 	var h client.Hub
-	if err := r.client.Get(fmt.Sprintf("/hubs/%d", state.ID.ValueInt64()), &h); err != nil {
+	if err := r.client.Get(ctx, fmt.Sprintf("/hubs/%d", state.ID.ValueInt64()), &h); err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -130,7 +130,7 @@ func (r *HubResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	}
 	name := plan.Name.ValueString()
 	var h client.Hub
-	if err := r.client.Patch(fmt.Sprintf("/hubs/%d", state.ID.ValueInt64()), client.HubUpdate{
+	if err := r.client.Patch(ctx, fmt.Sprintf("/hubs/%d", state.ID.ValueInt64()), client.HubUpdate{
 		Name:         &name,
 		AddressSpace: strPtr(plan.AddressSpace),
 		Location:     strPtr(plan.Location),
@@ -148,7 +148,7 @@ func (r *HubResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.Delete(fmt.Sprintf("/hubs/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
+	if err := r.client.Delete(ctx, fmt.Sprintf("/hubs/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
 		resp.Diagnostics.AddError("Delete hub failed", err.Error())
 	}
 }

@@ -61,7 +61,7 @@ func (r *ScopeResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Description: "Scope kind: \"landing_zone\" or \"project\". Root scopes must be \"landing_zone\"; a \"project\" cannot have a \"landing_zone\" nested under it.",
 				Validators:  []validator.String{stringvalidator.OneOf("landing_zone", "project")},
 			},
-			"cidr":        schema.StringAttribute{Optional: true, Computed: true, Description: "Optional CIDR assigned to this scope.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}},
+			"cidr":        schema.StringAttribute{Optional: true, Computed: true, Description: "Optional CIDR assigned to this scope. Maximum size /8.", PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), cidrLimits(false)}},
 			"description": schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
 		},
 	}
@@ -98,7 +98,7 @@ func (r *ScopeResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 	var s client.Scope
-	if err := r.client.Post("/scopes/", client.ScopeCreate{
+	if err := r.client.Post(ctx, "/scopes/", client.ScopeCreate{
 		HubID:       plan.HubID.ValueInt64(),
 		ParentID:    int64Ptr(plan.ParentID),
 		Name:        plan.Name.ValueString(),
@@ -119,7 +119,7 @@ func (r *ScopeResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 	var s client.Scope
-	if err := r.client.Get(fmt.Sprintf("/scopes/%d", state.ID.ValueInt64()), &s); err != nil {
+	if err := r.client.Get(ctx, fmt.Sprintf("/scopes/%d", state.ID.ValueInt64()), &s); err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -141,7 +141,7 @@ func (r *ScopeResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	name := plan.Name.ValueString()
 	kind := plan.Kind.ValueString()
 	var s client.Scope
-	if err := r.client.Patch(fmt.Sprintf("/scopes/%d", state.ID.ValueInt64()), client.ScopeUpdate{
+	if err := r.client.Patch(ctx, fmt.Sprintf("/scopes/%d", state.ID.ValueInt64()), client.ScopeUpdate{
 		ParentID:    int64Ptr(plan.ParentID),
 		Name:        &name,
 		Kind:        &kind,
@@ -160,7 +160,7 @@ func (r *ScopeResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.Delete(fmt.Sprintf("/scopes/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
+	if err := r.client.Delete(ctx, fmt.Sprintf("/scopes/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
 		resp.Diagnostics.AddError("Delete scope failed", err.Error())
 	}
 }

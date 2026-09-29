@@ -26,7 +26,7 @@ resource "ipzilon_network" "example" {
 
 ### Required
 
-- `cidr` (String) Network CIDR (e.g. 10.0.1.0/24).
+- `cidr` (String) Network CIDR (e.g. 10.0.1.0/24). Maximum size /8.
 - `name` (String) Resource name (must be lowercase — the server normalizes all strings).
 - `scope_id` (Number) Scope this network belongs to.
 

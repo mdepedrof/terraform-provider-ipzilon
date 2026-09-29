@@ -85,14 +85,14 @@ func (d *SitesDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	var items []siteItem
 	if hasID {
 		var s client.Site
-		if err := d.client.Get(fmt.Sprintf("/sites/%d", cfg.ID.ValueInt64()), &s); err != nil {
+		if err := d.client.Get(ctx, fmt.Sprintf("/sites/%d", cfg.ID.ValueInt64()), &s); err != nil {
 			resp.Diagnostics.AddError("Get site failed", err.Error())
 			return
 		}
 		items = []siteItem{siteToItem(s)}
 	} else {
-		var sites []client.Site
-		if err := d.client.Get(sitesURL(stringFilter(cfg.Name)), &sites); err != nil {
+		sites, err := client.GetAll[client.Site](ctx, d.client, sitesURL(stringFilter(cfg.Name)))
+		if err != nil {
 			resp.Diagnostics.AddError("List sites failed", err.Error())
 			return
 		}

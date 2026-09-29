@@ -9,5 +9,5 @@ resource "ipzilon_next_ip_address" "app_vm" {
 # Available attributes after apply:
 # ipzilon_next_ip_address.app_vm.address          → "10.0.1.4"
 # ipzilon_next_ip_address.app_vm.hostname         → "app-vm-01"
-# ipzilon_next_ip_address.app_vm.status           → "used"
+# ipzilon_next_ip_address.app_vm.status           → "reserved"
 # ipzilon_next_ip_address.app_vm.is_azure_reserved → false

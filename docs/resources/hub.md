@@ -32,7 +32,7 @@ resource "ipzilon_hub" "example" {
 
 ### Optional
 
-- `address_space` (String) Hub address space CIDR (e.g. 10.0.0.0/16).
+- `address_space` (String) Hub address space CIDR (e.g. 10.0.0.0/16). Maximum size /8.
 - `description` (String) Free-text description.
 - `location` (String) Free-text location label (e.g. West Europe).
 

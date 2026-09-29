@@ -34,7 +34,7 @@ func (r *SubnetResource) Metadata(_ context.Context, req resource.MetadataReques
 
 func (r *SubnetResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a subnet with an explicit CIDR inside a network. Creating a subnet auto-populates all IP records.",
+		Description: "Manages a subnet with an explicit CIDR inside a network. Addresses get a record only when they are occupied, reserved or annotated.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
 				Computed: true,
@@ -50,7 +50,7 @@ func (r *SubnetResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				},
 			},
 			"name":        schema.StringAttribute{Required: true, Description: "Resource name (must be lowercase — the server normalizes all strings)."},
-			"cidr":        schema.StringAttribute{Required: true, Description: "Subnet CIDR. Changing this repopulates all IP records."},
+			"cidr":        schema.StringAttribute{Required: true, Description: "Subnet CIDR (IPv4, /8 or smaller). Changing it keeps the stored addresses that remain inside the new range; stored addresses left outside are released (the provider always sends force: true).", PlanModifiers: []planmodifier.String{cidrLimits(true)}},
 			"description": schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
 		},
 	}
@@ -85,7 +85,7 @@ func (r *SubnetResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 	var s client.Subnet
-	if err := r.client.Post("/subnets/", client.SubnetCreate{
+	if err := r.client.Post(ctx, "/subnets/", client.SubnetCreate{
 		NetworkID:   plan.NetworkID.ValueInt64(),
 		Name:        plan.Name.ValueString(),
 		CIDR:        plan.CIDR.ValueString(),
@@ -104,7 +104,7 @@ func (r *SubnetResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 	var s client.Subnet
-	if err := r.client.Get(fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), &s); err != nil {
+	if err := r.client.Get(ctx, fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), &s); err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
@@ -126,13 +126,14 @@ func (r *SubnetResource) Update(ctx context.Context, req resource.UpdateRequest,
 	name := plan.Name.ValueString()
 	cidr := plan.CIDR.ValueString()
 	var s client.Subnet
-	if err := r.client.Patch(fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), client.SubnetUpdate{
+	if err := r.client.Patch(ctx, fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), client.SubnetUpdate{
 		Name:        &name,
 		CIDR:        &cidr,
 		Description: strPtr(plan.Description),
 		// A CIDR change here was already approved by the user via `terraform
 		// plan`/`apply` — the schema's own "cidr" description already warns
-		// it repopulates all IP records — so skip the server's interactive
+		// that stored addresses left outside the new range are released — so
+		// skip the server's interactive
 		// confirmation (which a non-interactive apply couldn't answer anyway).
 		Force: true,
 	}, &s); err != nil {
@@ -148,7 +149,7 @@ func (r *SubnetResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.Delete(fmt.Sprintf("/subnets/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
+	if err := r.client.Delete(ctx, fmt.Sprintf("/subnets/%d", state.ID.ValueInt64())); err != nil && !client.IsNotFound(err) {
 		resp.Diagnostics.AddError("Delete subnet failed", err.Error())
 	}
 }
