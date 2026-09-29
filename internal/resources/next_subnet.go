@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
@@ -28,6 +30,33 @@ type nextSubnetModel struct {
 	Name         types.String `tfsdk:"name"`
 	Description  types.String `tfsdk:"description"`
 	CIDR         types.String `tfsdk:"cidr"`
+}
+
+// nextSubnetFromAPI builds the whole state from the API object; it is the only
+// place that fills nextSubnetModel (Create, Read and Update). prefix_length is
+// derived from the CIDR the API returns.
+func nextSubnetFromAPI(sub client.Subnet) (nextSubnetModel, error) {
+	prefixLength, err := prefixLengthValue(sub.CIDR)
+	if err != nil {
+		return nextSubnetModel{}, err
+	}
+	return nextSubnetModel{
+		ID:           types.Int64Value(sub.ID),
+		NetworkID:    types.Int64Value(sub.NetworkID),
+		PrefixLength: prefixLength,
+		Name:         types.StringValue(sub.Name),
+		Description:  types.StringPointerValue(sub.Description),
+		CIDR:         types.StringValue(sub.CIDR),
+	}, nil
+}
+
+func setNextSubnetState(ctx context.Context, sub client.Subnet, state *tfsdk.State, diags *diag.Diagnostics) {
+	model, err := nextSubnetFromAPI(sub)
+	if err != nil {
+		diags.AddError("Invalid subnet returned by the API", err.Error())
+		return
+	}
+	diags.Append(state.Set(ctx, model)...)
 }
 
 func (r *NextSubnetResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -105,14 +134,7 @@ func (r *NextSubnetResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddError("Reserve next subnet failed", err.Error())
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, nextSubnetModel{
-		ID:           types.Int64Value(s.ID),
-		NetworkID:    types.Int64Value(s.NetworkID),
-		PrefixLength: plan.PrefixLength,
-		Name:         types.StringValue(s.Name),
-		Description:  types.StringPointerValue(s.Description),
-		CIDR:         types.StringValue(s.CIDR),
-	})...)
+	setNextSubnetState(ctx, s, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextSubnetResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -130,14 +152,7 @@ func (r *NextSubnetResource) Read(ctx context.Context, req resource.ReadRequest,
 		resp.Diagnostics.AddError("Read subnet failed", err.Error())
 		return
 	}
-	state.Name = types.StringValue(s.Name)
-	state.Description = types.StringPointerValue(s.Description)
-	state.CIDR = types.StringValue(s.CIDR)
-	state.NetworkID = types.Int64Value(s.NetworkID)
-	if prefixLength, err := cidrPrefixLength(s.CIDR); err == nil {
-		state.PrefixLength = types.Int64Value(prefixLength)
-	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	setNextSubnetState(ctx, s, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextSubnetResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -157,9 +172,7 @@ func (r *NextSubnetResource) Update(ctx context.Context, req resource.UpdateRequ
 		resp.Diagnostics.AddError("Update subnet failed", err.Error())
 		return
 	}
-	state.Name = types.StringValue(s.Name)
-	state.Description = types.StringPointerValue(s.Description)
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	setNextSubnetState(ctx, s, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextSubnetResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

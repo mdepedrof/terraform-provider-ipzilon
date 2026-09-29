@@ -195,6 +195,18 @@ block, or `terraform plan` will report `scope_id` as required/missing.
 Scopes can now be nested up to 4 levels deep (previously 2), subject to the
 `landing_zone`/`project` nesting rule above.
 
+## Importing existing resources
+
+Every resource supports `terraform import` with the numeric IPzilon id
+(`terraform import ipzilon_next_ip_address.app_vm 2204`). `Read` fills every attribute from the API,
+so once your configuration matches the imported object the next `plan` shows no changes and never
+proposes a replacement.
+
+IPs migrated from another IPAM can come back from the API with `hostname` equal to `description`
+(for example id 2204). If your configuration sets a different `hostname`, the first `plan` shows an
+in-place update of `hostname`; it is a real difference and converges after one `apply`. To avoid it,
+set `hostname` explicitly to the value stored in IPzilon.
+
 ## Documentation
 
 Full attribute reference and import syntax: [registry.terraform.io/providers/mdepedrof/ipzilon](https://registry.terraform.io/providers/mdepedrof/ipzilon/latest/docs)

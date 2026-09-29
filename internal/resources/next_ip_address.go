@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
@@ -30,6 +32,36 @@ type nextIPAddressModel struct {
 	Address         types.String `tfsdk:"address"`
 	Status          types.String `tfsdk:"status"`
 	IsAzureReserved types.Bool   `tfsdk:"is_azure_reserved"`
+}
+
+// nextIPFromAPI builds the whole state of the resource from the API object. It
+// is the only place that fills nextIPAddressModel (Create, Read and Update),
+// so no attribute depends on the previous state.
+func nextIPFromAPI(ip client.IPAddress) (nextIPAddressModel, error) {
+	id, err := ipIDValue(ip.ID)
+	if err != nil {
+		return nextIPAddressModel{}, err
+	}
+	return nextIPAddressModel{
+		ID:              id,
+		SubnetID:        types.Int64Value(ip.SubnetID),
+		Hostname:        types.StringPointerValue(ip.Hostname),
+		Description:     types.StringPointerValue(ip.Description),
+		Address:         types.StringValue(ip.Address),
+		Status:          types.StringValue(ip.Status),
+		IsAzureReserved: types.BoolValue(ip.IsAzureReserved),
+	}, nil
+}
+
+// setNextIPState writes the state built from the API object, reporting any
+// conversion error as a diagnostic.
+func setNextIPState(ctx context.Context, ip client.IPAddress, state *tfsdk.State, diags *diag.Diagnostics) {
+	model, err := nextIPFromAPI(ip)
+	if err != nil {
+		diags.AddError("Read IP failed", err.Error())
+		return
+	}
+	diags.Append(state.Set(ctx, model)...)
 }
 
 func (r *NextIPAddressResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -118,15 +150,7 @@ func (r *NextIPAddressResource) Create(ctx context.Context, req resource.CreateR
 		}
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, nextIPAddressModel{
-		ID:              id,
-		SubnetID:        types.Int64Value(ip.SubnetID),
-		Hostname:        types.StringPointerValue(ip.Hostname),
-		Description:     types.StringPointerValue(ip.Description),
-		Address:         types.StringValue(ip.Address),
-		Status:          types.StringValue(ip.Status),
-		IsAzureReserved: types.BoolValue(ip.IsAzureReserved),
-	})...)
+	setNextIPState(ctx, ip, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextIPAddressResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -144,12 +168,7 @@ func (r *NextIPAddressResource) Read(ctx context.Context, req resource.ReadReque
 		resp.Diagnostics.AddError("Read IP failed", err.Error())
 		return
 	}
-	state.Hostname = types.StringPointerValue(ip.Hostname)
-	state.Description = types.StringPointerValue(ip.Description)
-	state.Address = types.StringValue(ip.Address)
-	state.Status = types.StringValue(ip.Status)
-	state.IsAzureReserved = types.BoolValue(ip.IsAzureReserved)
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	setNextIPState(ctx, ip, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextIPAddressResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -169,11 +188,7 @@ func (r *NextIPAddressResource) Update(ctx context.Context, req resource.UpdateR
 		resp.Diagnostics.AddError("Update IP failed", err.Error())
 		return
 	}
-	state.Hostname = types.StringPointerValue(ip.Hostname)
-	state.Description = types.StringPointerValue(ip.Description)
-	state.Status = types.StringValue(ip.Status)
-	state.IsAzureReserved = types.BoolValue(ip.IsAzureReserved)
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	setNextIPState(ctx, ip, &resp.State, &resp.Diagnostics)
 }
 
 func (r *NextIPAddressResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

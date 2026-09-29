@@ -44,20 +44,17 @@ func int64Ptr(v types.Int64) *int64 {
 	return &n
 }
 
-// cidrPrefixLength extracts the prefix length from a CIDR string (e.g.
-// "10.1.4.0/24" -> 24). Used in Read() to repopulate the prefix_length
-// attribute of next_subnet/next_network/last_subnet after import or refresh,
-// since the API response only returns the resulting cidr, never the
-// prefix_length that was used to request it. Without this, prefix_length
-// stays unknown after `terraform import` and, being RequiresReplace, forces
-// a spurious replacement on the very next plan.
-func cidrPrefixLength(cidr string) (int64, error) {
+// prefixLengthValue derives the prefix_length attribute from the CIDR returned
+// by the API. It is the single derivation point for next_subnet, last_subnet
+// and next_network, and it returns an error instead of leaving the attribute
+// empty (which would force a spurious replacement after an import).
+func prefixLengthValue(cidr string) (types.Int64, error) {
 	_, network, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return 0, err
+		return types.Int64Null(), fmt.Errorf("invalid CIDR %q: %w", cidr, err)
 	}
 	ones, _ := network.Mask.Size()
-	return int64(ones), nil
+	return types.Int64Value(int64(ones)), nil
 }
 
 // ipIDValue converts the id of an IP record returned by the API. Since

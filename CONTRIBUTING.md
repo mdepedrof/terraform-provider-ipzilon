@@ -51,6 +51,29 @@ make generate   # regenerate docs/ from schema
 
 The CI workflow will fail if `docs/` is out of sync with the schema.
 
+## New resources
+
+Every resource MUST leave a complete state after `terraform import` (constitution, principle III):
+
+1. Build the state only from the API object with one `<x>FromAPI` function and use it in `Create`,
+   `Read` and `Update` (never copy fields one by one onto the previous state).
+2. Derive from the API the attributes it does not return, with the shared helper
+   (`prefix_length` comes from `cidr` through `prefixLengthValue`); return the error instead of
+   leaving the attribute empty.
+3. Add a row to `importCases` in `internal/resources/read_after_import_test.go`.
+   `TestReadAfterImportCoversAllResources` fails if a registered resource has no row.
+4. Add a `TestAccImport_*` case in `internal/resources/acc_import_test.go`.
+5. Data sources never read the previous state (`grep -n "req.State" internal/datasources/*.go`
+   must return nothing).
+
+## Dependencies
+
+The provider only uses `terraform-plugin-framework` (constitution, technical constraints).
+`terraform-plugin-testing`, used only in `_test.go` files for the acceptance tests, depends on
+`terraform-plugin-sdk/v2`, which therefore appears as an *indirect* dependency in `go.mod`. It is
+accepted only as a transitive test dependency: no provider code may import it, and it must not be
+linked into the binary (`go list -deps . | grep terraform-plugin-sdk` must return nothing).
+
 ## Pull requests
 
 - One PR per logical change
@@ -59,6 +82,19 @@ The CI workflow will fail if `docs/` is out of sync with the schema.
 - The CI workflow must pass
 
 ## Releasing
+
+Before tagging, run the acceptance tests against a real IPzilon (>= 3.0.0). They create, import and
+plan every resource and must pass for all nine (import → empty plan):
+
+```bash
+export IPZILON_API_URL=... IPZILON_TOKEN=...
+export IPZILON_TEST_SITE_ID=<existing site id>
+export IPZILON_TEST_ADDRESS_SPACE=10.250.0.0/16   # free IPv4 /16
+make test && make testacc
+```
+
+Checklist: `make test` green, `make testacc` green, `make generate` leaves `docs/` unchanged
+(unless the schema changed), and no unexpected entry in *Breaking Changes*.
 
 Releases are created by pushing a version tag:
 

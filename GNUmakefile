@@ -17,7 +17,7 @@ test:
 	go test ./...
 
 testacc:
-	TF_ACC=1 go test ./internal/... -v -timeout 120s
+	TF_ACC=1 go test ./internal/... -v -timeout 600s
 
 # Regenerate docs/. Run after changing any resource/datasource schema.
 generate:

@@ -87,7 +87,10 @@ seguridad automática y los de aceptación la validación previa a la release.
 
 - **Lenguaje y framework**: Go en la versión fijada en `go.mod` y
   `terraform-plugin-framework` (con `terraform-plugin-framework-validators`). MUST NOT
-  introducirse `terraform-plugin-sdk/v2` ni mezclar ambos frameworks.
+  introducirse `terraform-plugin-sdk/v2` ni mezclar ambos frameworks en el código del provider; se
+  admite únicamente como dependencia indirecta de `terraform-plugin-testing` en tests (nunca
+  importada por el código del provider ni enlazada en el binario: `go list -deps . | grep
+  terraform-plugin-sdk` MUST devolver vacío).
 - **Estructura**: cliente HTTP y modelos en `internal/client`, recursos en `internal/resources`,
   data sources en `internal/datasources`, registro en `internal/provider`. Las llamadas HTTP
   MUST pasar por `internal/client`.
@@ -127,4 +130,4 @@ seguridad automática y los de aceptación la validación previa a la release.
   principios, y cada revisión de PR MUST verificarlos. Cualquier excepción MUST justificarse
   explícitamente en el plan o en la PR.
 
-**Version**: 1.0.1 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-28
+**Version**: 1.0.2 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-29
