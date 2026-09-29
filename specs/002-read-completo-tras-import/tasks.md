@@ -138,9 +138,9 @@ Provider Go de proyecto único: `internal/client`, `internal/datasources`, `inte
 - [X] T025 [US6] Regenerar la documentación con `make generate` y confirmar que `docs/` **no** cambia (`git diff --stat docs/` vacío; Principio IV, FR-010)
 - [X] T026 [US6] Comprobar que no hay cambios de esquema ni entradas nuevas en *Breaking Changes* de `README.md` (SC-005) y que los ejemplos siguen fijando `~> 3.0`
 - [X] T027 [US6] Puerta final antes de la PR: `go build ./... && go vet ./... && gofmt -l . && make test` (los mismos comandos que la CI) y corregir cualquier fallo
-- [ ] T028 [US6] Abrir la PR (sin issue asociado, T001b omitida), con el commit generado con el comando `commit-message` (sin coautoría; pedir confirmación del mensaje con `AskUserQuestion` antes de commitear y de crear la PR)
-- [ ] T029 [US6] Ejecutar `TF_ACC=1 make testacc` contra un IPzilon real y validar el caso de `camaras` (quickstart §4: `terraform import ipzilon_next_ip_address.ip_events_ilb 2204` + `plan` sin cambios) usando el provider local (`dev_overrides`); si el `plan` muestra un diff in situ de `hostname`, ajustar el texto de T024 en la misma PR
-- [ ] T030 [US6] Tras mergear la PR: actualizar `main`, limpiar ramas locales y, **tras confirmación explícita** (acción externa e irreversible), publicar el tag `v3.0.1` (GoReleaser), según la sección de release de `CONTRIBUTING.md`; anunciar el desbloqueo de `camaras` y `avd`
+- [X] T028 [US6] Abrir la PR (sin issue asociado, T001b omitida), con el commit generado con el comando `commit-message` (sin coautoría; pedir confirmación del mensaje con `AskUserQuestion` antes de commitear y de crear la PR)
+- [ ] T029 [US6] Ejecutar `TF_ACC=1 make testacc` contra un IPzilon real y validar el caso de `camaras` (quickstart §4: `terraform import ipzilon_next_ip_address.ip_events_ilb 2204` + `plan` sin cambios) usando el provider local (`dev_overrides`); si el `plan` muestra un diff in situ de `hostname`, ajustar el texto de T024 en la misma PR **(Pendiente de validación real en el stack `camaras`; la release v3.0.1 se publicó sin ella.)**
+- [X] T030 [US6] Tras mergear la PR: actualizar `main`, limpiar ramas locales y, **tras confirmación explícita** (acción externa e irreversible), publicar el tag `v3.0.1` (GoReleaser), según la sección de release de `CONTRIBUTING.md`; anunciar el desbloqueo de `camaras` y `avd`
 
 ---
 
