@@ -48,7 +48,7 @@ data "ipzilon_subnets" "hosts" {
 - `cidr` (String) Filter: subnets whose network equals this CIDR (server-side, IPzilon >= 3.2.0). Must be a CIDR without host bits; network_id is not required.
 - `id` (Number) Lookup a single subnet by ID. Cannot be combined with other filters.
 - `name` (String) Filter: exact name match (server-side, IPzilon >= 3.2.0). network_id is not required.
-- `network_id` (Number) List all subnets for a network.
+- `network_id` (Number) Filter: subnets of this network. Optional with zone_id, name or cidr; required with no_zone.
 - `no_zone` (Boolean) When true, list only the subnets of network_id outside every zone (IPzilon >= 3.1.0). Requires network_id; cannot be combined with zone_id, name or cidr.
 - `zone_id` (Number) List the subnets inside this zone (IPzilon >= 3.1.0). network_id is not required.
 

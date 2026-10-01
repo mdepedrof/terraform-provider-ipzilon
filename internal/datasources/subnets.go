@@ -60,7 +60,7 @@ func (d *SubnetsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 		Description: "List subnets. Provide id (singular), network_id, zone_id, name or cidr. name and cidr do not need network_id (IPzilon >= 3.2.0).",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.Int64Attribute{Optional: true, Description: "Lookup a single subnet by ID. Cannot be combined with other filters."},
-			"network_id": schema.Int64Attribute{Optional: true, Description: "List all subnets for a network."},
+			"network_id": schema.Int64Attribute{Optional: true, Description: "Filter: subnets of this network. Optional with zone_id, name or cidr; required with no_zone."},
 			"zone_id":    schema.Int64Attribute{Optional: true, Description: "List the subnets inside this zone (IPzilon >= 3.1.0). network_id is not required."},
 			"no_zone":    schema.BoolAttribute{Optional: true, Description: "When true, list only the subnets of network_id outside every zone (IPzilon >= 3.1.0). Requires network_id; cannot be combined with zone_id, name or cidr."},
 			"name":       schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side, IPzilon >= 3.2.0). network_id is not required."},

@@ -218,3 +218,8 @@ US2 (ip_addresses.go)  |  US3 (hubs/scopes/networks/subnets.go)  |  US4 (hub.go,
 3. US4: mover hubs de site.
 4. Polish y release única **v3.2.0** (todas las historias juntas; no se publican incrementos
    parciales salvo decisión del propietario).
+
+## Phase 8: Convergence
+
+- [X] T038 Documentar en `CONTRIBUTING.md` (bloque de variables de `make testacc`, junto a `IPZILON_TEST_SITE_ID`) la variable opcional `IPZILON_TEST_ALT_SITE_ID=<id of a second site of the same type>` y que sin ella `TestAccHub_MoveSite` se salta per plan: Testing (`IPZILON_TEST_ALT_SITE_ID`) (partial)
+- [X] T039 Actualizar la `Description` de `network_id` en `internal/datasources/subnets.go` (p. ej. "Filter: subnets of this network. Optional with zone_id, name or cidr; required with no_zone.") y regenerar `docs/` con `make generate` per FR-023 (partial)
