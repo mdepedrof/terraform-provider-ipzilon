@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -17,7 +18,8 @@ import (
 )
 
 // fakeAPI answers by exact request URI and records the URIs requested. A
-// request without a route fails the test.
+// request without a route fails the test. A body "status:<code> <payload>"
+// answers with that HTTP status and payload.
 func fakeAPI(t *testing.T, version string, routes map[string]string) (*client.Client, *[]string) {
 	t.Helper()
 	var calls []string
@@ -31,6 +33,16 @@ func fakeAPI(t *testing.T, version string, routes map[string]string) (*client.Cl
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		// "status:<code> <body>" answers with that HTTP status.
+		if rest, ok := strings.CutPrefix(body, "status:"); ok {
+			codeText, payload, _ := strings.Cut(rest, " ")
+			code, err := strconv.Atoi(codeText)
+			if err != nil {
+				t.Fatalf("bad status route %q", body)
+			}
+			w.WriteHeader(code)
+			body = payload
+		}
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
@@ -42,9 +54,25 @@ func fakeAPI(t *testing.T, version string, routes map[string]string) (*client.Cl
 func readDataSource(t *testing.T, d datasource.DataSource, c *client.Client, vals map[string]any) datasource.ReadResponse {
 	t.Helper()
 	ctx := context.Background()
+	d.(datasource.DataSourceWithConfigure).Configure(ctx, datasource.ConfigureRequest{ProviderData: c}, &datasource.ConfigureResponse{})
+	cfg := dataSourceConfig(t, d, vals)
+	objType := cfg.Schema.Type().TerraformType(ctx)
+	resp := datasource.ReadResponse{State: tfsdk.State{Schema: cfg.Schema, Raw: tftypes.NewValue(objType, nil)}}
+	d.Read(ctx, datasource.ReadRequest{Config: cfg}, &resp)
+	return resp
+}
+
+// unknown marks a configuration value as not yet known (e.g. it depends on a
+// resource that has not been created).
+const unknown = "<unknown>"
+
+// dataSourceConfig builds the configuration of d from Go values (int64,
+// string, bool, nil or unknown).
+func dataSourceConfig(t *testing.T, d datasource.DataSource, vals map[string]any) tfsdk.Config {
+	t.Helper()
+	ctx := context.Background()
 	var schemaResp datasource.SchemaResponse
 	d.Schema(ctx, datasource.SchemaRequest{}, &schemaResp)
-	d.(datasource.DataSourceWithConfigure).Configure(ctx, datasource.ConfigureRequest{ProviderData: c}, &datasource.ConfigureResponse{})
 
 	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
 	raw := make(map[string]tftypes.Value, len(objType.AttributeTypes))
@@ -54,14 +82,40 @@ func readDataSource(t *testing.T, d datasource.DataSource, c *client.Client, val
 			raw[name] = tftypes.NewValue(typ, nil)
 		case int64:
 			raw[name] = tftypes.NewValue(typ, big.NewFloat(float64(v)))
+		case string:
+			if v == unknown {
+				raw[name] = tftypes.NewValue(typ, tftypes.UnknownValue)
+			} else {
+				raw[name] = tftypes.NewValue(typ, v)
+			}
 		default:
 			raw[name] = tftypes.NewValue(typ, v)
 		}
 	}
-	cfg := tfsdk.Config{Schema: schemaResp.Schema, Raw: tftypes.NewValue(objType, raw)}
-	resp := datasource.ReadResponse{State: tfsdk.State{Schema: schemaResp.Schema, Raw: tftypes.NewValue(objType, nil)}}
-	d.Read(ctx, datasource.ReadRequest{Config: cfg}, &resp)
+	return tfsdk.Config{Schema: schemaResp.Schema, Raw: tftypes.NewValue(objType, raw)}
+}
+
+// validateDataSource runs ValidateConfig with a configuration built like in
+// readDataSource and returns the response.
+func validateDataSource(t *testing.T, d datasource.DataSource, vals map[string]any) datasource.ValidateConfigResponse {
+	t.Helper()
+	v, ok := d.(datasource.DataSourceWithValidateConfig)
+	if !ok {
+		t.Fatalf("%T does not implement ValidateConfig", d)
+	}
+	var resp datasource.ValidateConfigResponse
+	v.ValidateConfig(context.Background(), datasource.ValidateConfigRequest{Config: dataSourceConfig(t, d, vals)}, &resp)
 	return resp
+}
+
+// itemsAreNull reports whether the "items" list of the state is null.
+func itemsAreNull(t *testing.T, resp datasource.ReadResponse) bool {
+	t.Helper()
+	top := map[string]tftypes.Value{}
+	if err := resp.State.Raw.As(&top); err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	return top["items"].IsNull()
 }
 
 // itemsOf returns the "items" list of the state as one map per item.

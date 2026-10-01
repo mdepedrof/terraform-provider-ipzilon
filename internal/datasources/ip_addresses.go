@@ -3,16 +3,21 @@ package datasources
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"net/url"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
 )
 
-var _ datasource.DataSource = &IPAddressesDataSource{}
+var (
+	_ datasource.DataSource                   = &IPAddressesDataSource{}
+	_ datasource.DataSourceWithValidateConfig = &IPAddressesDataSource{}
+)
 
 type IPAddressesDataSource struct{ client *client.Client }
 
@@ -22,6 +27,7 @@ type ipAddressesModel struct {
 	ID       types.Int64  `tfsdk:"id"`
 	SubnetID types.Int64  `tfsdk:"subnet_id"`
 	Status   types.String `tfsdk:"status"`
+	Address  types.String `tfsdk:"address"`
 	Items    []ipAddrItem `tfsdk:"items"`
 }
 
@@ -53,12 +59,13 @@ func (d *IPAddressesDataSource) Metadata(_ context.Context, req datasource.Metad
 
 func (d *IPAddressesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "List IP addresses. Provide id (singular) OR subnet_id with optional status filter. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.",
+		Description: "List IP addresses. Provide id (singular) OR subnet_id with an optional status or address filter. Without status or address the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.",
 		Attributes: map[string]schema.Attribute{
 			"id":        schema.Int64Attribute{Optional: true, Description: "Lookup a single IP by ID."},
 			"subnet_id": schema.Int64Attribute{Optional: true, Description: "List IPs for a subnet."},
 			"status":    schema.StringAttribute{Optional: true, Description: "Filter by status: available, used, reserved. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost."},
-			"items":     schema.ListNestedAttribute{Computed: true, NestedObject: ipAddrItemSchema},
+			"address":   schema.StringAttribute{Optional: true, Description: "Look up one address of subnet_id, occupied or free (a free address is returned with id = null and status = available). The address is the stable way to refer to an IP: its id changes when it is released and occupied again. Requires subnet_id; cannot be combined with id or status. Fails if the address is not in the subnet."},
+			"items":     schema.ListNestedAttribute{Computed: true, NestedObject: ipAddrItemSchema, Description: "Matching IP addresses; an empty list when nothing matches (a lookup by address returns exactly one)."},
 		},
 	}
 }
@@ -93,7 +100,7 @@ func (d *IPAddressesDataSource) Read(ctx context.Context, req datasource.ReadReq
 		return
 	}
 
-	var items []ipAddrItem
+	items := []ipAddrItem{}
 	if hasID {
 		var ip client.IPAddress
 		if err := d.client.Get(ctx, fmt.Sprintf("/ips/%d", cfg.ID.ValueInt64()), &ip); err != nil {
@@ -106,9 +113,17 @@ func (d *IPAddressesDataSource) Read(ctx context.Context, req datasource.ReadReq
 		}
 		items = []ipAddrItem{ipToItem(ip)}
 	} else {
-		ips, err := client.GetAll[client.IPAddress](ctx, d.client, subnetIPsURL(cfg.SubnetID.ValueInt64(), stringFilter(cfg.Status)))
+		subnetID := cfg.SubnetID.ValueInt64()
+		address := stringFilter(cfg.Address)
+		ips, err := client.GetAll[client.IPAddress](ctx, d.client, subnetIPsURL(subnetID, stringFilter(cfg.Status), address))
 		if err != nil {
 			resp.Diagnostics.AddError("List IPs failed", err.Error())
+			return
+		}
+		// IPzilon answers an address outside the subnet (or malformed) with an
+		// empty list; a lookup by address must return exactly that address.
+		if address != nil && len(ips) == 0 {
+			resp.Diagnostics.AddError("IP address not found", fmt.Sprintf("%s is not an address of subnet %d", *address, subnetID))
 			return
 		}
 		for _, ip := range ips {
@@ -121,11 +136,42 @@ func (d *IPAddressesDataSource) Read(ctx context.Context, req datasource.ReadReq
 }
 
 // subnetIPsURL builds the request URL for GET /subnets/{subnet_id}/ips with the
-// optional server-side status filter.
-func subnetIPsURL(subnetID int64, status *string) string {
-	reqURL := fmt.Sprintf("/subnets/%d/ips", subnetID)
+// optional server-side filters status and address (mutually exclusive,
+// validated in ValidateConfig).
+func subnetIPsURL(subnetID int64, status, address *string) string {
+	q := url.Values{}
 	if status != nil {
-		reqURL += "?" + url.Values{"status": {*status}}.Encode()
+		q.Set("status", *status)
+	}
+	if address != nil {
+		q.Set("address", *address)
+	}
+
+	reqURL := fmt.Sprintf("/subnets/%d/ips", subnetID)
+	if encoded := q.Encode(); encoded != "" {
+		reqURL += "?" + encoded
 	}
 	return reqURL
+}
+
+// ValidateConfig checks the address filter in plan: an IP address, only with
+// subnet_id and never with id or status.
+func (d *IPAddressesDataSource) ValidateConfig(ctx context.Context, req datasource.ValidateConfigRequest, resp *datasource.ValidateConfigResponse) {
+	var cfg ipAddressesModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() || cfg.Address.IsNull() {
+		return
+	}
+
+	if !cfg.Address.IsUnknown() {
+		if _, err := netip.ParseAddr(cfg.Address.ValueString()); err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("address"), "Invalid address", fmt.Sprintf("'%s' is not a valid IP address", cfg.Address.ValueString()))
+		}
+	}
+	if cfg.SubnetID.IsNull() {
+		resp.Diagnostics.AddAttributeError(path.Root("address"), "Missing filter", "address requires subnet_id")
+	}
+	if !cfg.ID.IsNull() || !cfg.Status.IsNull() {
+		resp.Diagnostics.AddAttributeError(path.Root("address"), "Conflicting filters", "address cannot be combined with id or status")
+	}
 }

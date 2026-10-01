@@ -17,3 +17,13 @@ data "ipzilon_hubs" "filtered" {
 output "hub_cidr" {
   value = data.ipzilon_hubs.all.items[0].address_space
 }
+
+# Lookup a hub by its address space only, without site_id (IPzilon >= 3.2.0).
+# Without site_id the CIDR is compared as a network: it must have no host bits.
+data "ipzilon_hubs" "weu" {
+  address_space = "10.0.0.0/16"
+}
+
+output "weu_hub_id" {
+  value = one(data.ipzilon_hubs.weu.items).id
+}

@@ -40,6 +40,9 @@ type HubUpdate struct {
 	AddressSpace *string `json:"address_space"`
 	Location     *string `json:"location"`
 	Description  *string `json:"description"`
+	// SiteID is set only when the hub moves to another site (IPzilon >=
+	// 3.2.0; older releases ignore it).
+	SiteID *int64 `json:"site_id,omitempty"`
 }
 
 // Scope

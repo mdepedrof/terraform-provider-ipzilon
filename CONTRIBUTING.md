@@ -83,15 +83,19 @@ linked into the binary (`go list -deps . | grep terraform-plugin-sdk` must retur
 
 ## Releasing
 
-Before tagging, run the acceptance tests against a real IPzilon (>= 3.0.0). They create, import and
-plan every resource and must pass for all nine (import → empty plan):
+Before tagging, run the acceptance tests against a real IPzilon of the latest supported release
+(>= 3.2.0). They create, import and plan every resource (import → empty plan), look objects up
+without ids and move a hub between sites, and must all pass:
 
 ```bash
 export IPZILON_API_URL=... IPZILON_TOKEN=...
 export IPZILON_TEST_SITE_ID=<existing site id>
 export IPZILON_TEST_ADDRESS_SPACE=10.250.0.0/16   # free IPv4 /16
+export IPZILON_TEST_ALT_SITE_ID=<id of a second site of the same type>   # optional
 make test && make testacc
 ```
+
+Without `IPZILON_TEST_ALT_SITE_ID`, `TestAccHub_MoveSite` is skipped.
 
 Checklist: `make test` green, `make testacc` green, `make generate` leaves `docs/` unchanged
 (unless the schema changed), and no unexpected entry in *Breaking Changes*.

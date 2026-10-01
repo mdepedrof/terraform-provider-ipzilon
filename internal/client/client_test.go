@@ -458,3 +458,37 @@ func TestRequireAPIVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestIsMethodNotAllowed(t *testing.T) {
+	if !IsMethodNotAllowed(&APIError{Code: 405, Message: "Method Not Allowed"}) {
+		t.Error("405 not detected")
+	}
+	if !IsMethodNotAllowed(fmt.Errorf("wrapped: %w", &APIError{Code: 405})) {
+		t.Error("wrapped 405 not detected")
+	}
+	for _, err := range []error{&APIError{Code: 404}, &APIError{Code: 409}, errors.New("boom"), nil} {
+		if IsMethodNotAllowed(err) {
+			t.Errorf("IsMethodNotAllowed(%v) = true", err)
+		}
+	}
+}
+
+func TestRequireAPIVersionGlobalLists(t *testing.T) {
+	cases := map[string]bool{ // version -> want error
+		"3.1.0":     true,
+		"3.1.9":     true,
+		"3.2.0":     false,
+		"3.3.1":     false,
+		"":          false,
+		"0.0.0-dev": false,
+	}
+	for v, wantErr := range cases {
+		err := (&Client{APIVersion: v}).RequireAPIVersion(MinGlobalListsAPIVersion, "x")
+		if (err != nil) != wantErr {
+			t.Errorf("RequireAPIVersion(%q) = %v, wantErr %v", v, err, wantErr)
+		}
+		if err != nil && (!errors.Is(err, ErrUnsupportedAPIVersion) || !strings.Contains(err.Error(), "requires IPzilon >= 3.2.0")) {
+			t.Errorf("RequireAPIVersion(%q) = %v", v, err)
+		}
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
 )
@@ -175,4 +176,83 @@ func networkSubnetsURL(networkID int64, zoneID *int64, noZone bool) string {
 		reqURL += "?" + encoded
 	}
 	return reqURL
+}
+
+// requireGlobalLists reports whether the server has the global listings
+// (IPzilon >= 3.2.0), adding an error that names feature when it does not. It
+// makes no request: the version was read from /health when the provider was
+// configured.
+func requireGlobalLists(c *client.Client, feature string, diags *diag.Diagnostics) bool {
+	if err := c.RequireAPIVersion(client.MinGlobalListsAPIVersion, feature); err != nil {
+		diags.AddError("IPzilon version not supported", err.Error())
+		return false
+	}
+	return true
+}
+
+// globalListError adds the error of a global listing, replacing the 405 of an
+// IPzilon without global listings (unknown version) with the version error.
+func globalListError(diags *diag.Diagnostics, summary, feature string, err error) {
+	if client.IsMethodNotAllowed(err) {
+		diags.AddError("IPzilon version not supported", fmt.Sprintf("%s requires IPzilon >= %s: the server has no global listing (%s)", feature, client.MinGlobalListsAPIVersion, err))
+		return
+	}
+	diags.AddError(summary, err.Error())
+}
+
+// globalURL builds the request URL of a global listing of IPzilon >= 3.2.0
+// with the given server-side filters (nil values are left out).
+func globalURL(base string, texts map[string]*string, ids map[string]*int64) string {
+	q := url.Values{}
+	for k, v := range texts {
+		if v != nil {
+			q.Set(k, *v)
+		}
+	}
+	for k, v := range ids {
+		if v != nil {
+			q.Set(k, fmt.Sprintf("%d", *v))
+		}
+	}
+	if encoded := q.Encode(); encoded != "" {
+		return base + "?" + encoded
+	}
+	return base
+}
+
+// globalHubsURL builds the request URL for GET /hubs/ (IPzilon >= 3.2.0) with
+// the optional filters address_space and name. A lookup with site_id uses
+// siteHubsURL instead.
+func globalHubsURL(addressSpace, name *string) string {
+	return globalURL("/hubs/", map[string]*string{"address_space": addressSpace, "name": name}, nil)
+}
+
+// globalScopesURL builds the request URL for GET /scopes/ (IPzilon >= 3.2.0)
+// with the optional filters name, cidr, kind and parent_id (direct children).
+// A lookup with hub_id uses hubScopesURL instead.
+func globalScopesURL(name, cidr, kind *string, parentID *int64) string {
+	return globalURL("/scopes/", map[string]*string{"name": name, "cidr": cidr, "kind": kind}, map[string]*int64{"parent_id": parentID})
+}
+
+// globalNetworksURL builds the request URL for GET /networks/ (IPzilon >=
+// 3.2.0) with the optional filters cidr and name. A lookup with hub_id or
+// scope_id uses hubNetworksURL or scopeNetworksURL instead.
+func globalNetworksURL(cidr, name *string) string {
+	return globalURL("/networks/", map[string]*string{"cidr": cidr, "name": name}, nil)
+}
+
+// globalSubnetsURL builds the request URL for GET /subnets/ (IPzilon >= 3.2.0)
+// with the optional filters name, cidr, network_id and zone_id.
+func globalSubnetsURL(name, cidr *string, networkID, zoneID *int64) string {
+	return globalURL("/subnets/", map[string]*string{"name": name, "cidr": cidr}, map[string]*int64{"network_id": networkID, "zone_id": zoneID})
+}
+
+// int64Filter converts a possibly null/unknown types.Int64 config value into
+// a *int64 suitable for building an optional query filter.
+func int64Filter(v types.Int64) *int64 {
+	if v.IsNull() || v.IsUnknown() {
+		return nil
+	}
+	n := v.ValueInt64()
+	return &n
 }

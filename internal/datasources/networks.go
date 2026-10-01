@@ -11,7 +11,10 @@ import (
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
 )
 
-var _ datasource.DataSource = &NetworksDataSource{}
+var (
+	_ datasource.DataSource                   = &NetworksDataSource{}
+	_ datasource.DataSourceWithValidateConfig = &NetworksDataSource{}
+)
 
 type NetworksDataSource struct{ client *client.Client }
 
@@ -36,8 +39,8 @@ type networkItem struct {
 
 var networkItemSchema = schema.NestedAttributeObject{
 	Attributes: map[string]schema.Attribute{
-		"id":          schema.Int64Attribute{Computed: true},
-		"scope_id":    schema.Int64Attribute{Computed: true},
+		"id":          schema.Int64Attribute{Computed: true, Description: "Network ID."},
+		"scope_id":    schema.Int64Attribute{Computed: true, Description: "ID of the scope the network belongs to."},
 		"name":        schema.StringAttribute{Computed: true, Description: "Network name."},
 		"cidr":        schema.StringAttribute{Computed: true, Description: "Network CIDR block."},
 		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
@@ -50,14 +53,14 @@ func (d *NetworksDataSource) Metadata(_ context.Context, req datasource.Metadata
 
 func (d *NetworksDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "List networks. Provide id (singular), hub_id, or scope_id.",
+		Description: "List networks. Provide id (singular), hub_id, scope_id or only name/cidr. Without hub_id and scope_id the lookup is global (IPzilon >= 3.2.0).",
 		Attributes: map[string]schema.Attribute{
-			"id":       schema.Int64Attribute{Optional: true, Description: "Lookup a single network by ID."},
-			"hub_id":   schema.Int64Attribute{Optional: true, Description: "List all networks across all scopes of a hub."},
-			"scope_id": schema.Int64Attribute{Optional: true, Description: "List networks for a specific scope."},
-			"cidr":     schema.StringAttribute{Optional: true, Description: "Filter: exact cidr match (server-side). Applies when hub_id or scope_id is set."},
-			"name":     schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side). Applies when hub_id or scope_id is set."},
-			"items":    schema.ListNestedAttribute{Computed: true, NestedObject: networkItemSchema},
+			"id":       schema.Int64Attribute{Optional: true, Description: "Lookup a single network by ID. Cannot be combined with hub_id or scope_id."},
+			"hub_id":   schema.Int64Attribute{Optional: true, Description: "Filter: networks across all scopes of a hub. Cannot be combined with scope_id."},
+			"scope_id": schema.Int64Attribute{Optional: true, Description: "Filter: networks directly under a scope. Cannot be combined with hub_id."},
+			"cidr":     schema.StringAttribute{Optional: true, Description: "Filter: cidr match (server-side). With hub_id or scope_id it is an exact text match; without them it compares the network, so the value must be a CIDR without host bits."},
+			"name":     schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side)."},
+			"items":    schema.ListNestedAttribute{Computed: true, NestedObject: networkItemSchema, Description: "Matching networks; an empty list when nothing matches."},
 		},
 	}
 }
@@ -99,16 +102,12 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 		resp.Diagnostics.AddError("Conflicting filters", "Provide either id or a parent filter (hub_id/scope_id), not both.")
 		return
 	}
-	if !hasID && parentCount == 0 {
-		resp.Diagnostics.AddError("Missing filter", "Provide id, hub_id, or scope_id.")
-		return
-	}
 	if parentCount > 1 {
 		resp.Diagnostics.AddError("Conflicting filters", "Provide either hub_id or scope_id, not both.")
 		return
 	}
 
-	var items []networkItem
+	items := []networkItem{}
 	if hasID {
 		var n client.Network
 		if err := d.client.Get(ctx, fmt.Sprintf("/networks/%d", cfg.ID.ValueInt64()), &n); err != nil {
@@ -127,7 +126,7 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 		for _, n := range networks {
 			items = append(items, networkToItem(n))
 		}
-	} else {
+	} else if hasScope {
 		reqURL := scopeNetworksURL(cfg.ScopeID.ValueInt64(), stringFilter(cfg.CIDR), stringFilter(cfg.Name))
 
 		networks, err := client.GetAll[client.Network](ctx, d.client, reqURL)
@@ -138,8 +137,34 @@ func (d *NetworksDataSource) Read(ctx context.Context, req datasource.ReadReques
 		for _, n := range networks {
 			items = append(items, networkToItem(n))
 		}
+	} else {
+		const feature = "ipzilon_networks without hub_id or scope_id"
+		if !requireGlobalLists(d.client, feature, &resp.Diagnostics) {
+			return
+		}
+		networks, err := client.GetAll[client.Network](ctx, d.client, globalNetworksURL(stringFilter(cfg.CIDR), stringFilter(cfg.Name)))
+		if err != nil {
+			globalListError(&resp.Diagnostics, "List networks failed", feature, err)
+			return
+		}
+		for _, n := range networks {
+			items = append(items, networkToItem(n))
+		}
 	}
 
 	cfg.Items = items
 	resp.Diagnostics.Append(resp.State.Set(ctx, cfg)...)
+}
+
+// ValidateConfig checks in plan that cidr is a network address when the
+// lookup is global (no id, hub_id or scope_id).
+func (d *NetworksDataSource) ValidateConfig(ctx context.Context, req datasource.ValidateConfigRequest, resp *datasource.ValidateConfigResponse) {
+	var cfg networksModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if cfg.ID.IsNull() && cfg.HubID.IsNull() && cfg.ScopeID.IsNull() {
+		validateGlobalCIDR(ctx, req.Config, "cidr", &resp.Diagnostics)
+	}
 }

@@ -32,7 +32,7 @@ type siteItem struct {
 
 var siteItemSchema = schema.NestedAttributeObject{
 	Attributes: map[string]schema.Attribute{
-		"id":          schema.Int64Attribute{Computed: true},
+		"id":          schema.Int64Attribute{Computed: true, Description: "Site ID."},
 		"name":        schema.StringAttribute{Computed: true, Description: "Site name."},
 		"type":        schema.StringAttribute{Computed: true, Description: "Site type."},
 		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
@@ -49,7 +49,7 @@ func (d *SitesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"id":    schema.Int64Attribute{Optional: true, Description: "Lookup a single site by ID."},
 			"name":  schema.StringAttribute{Optional: true, Description: "Filter sites by exact name match."},
-			"items": schema.ListNestedAttribute{Computed: true, NestedObject: siteItemSchema},
+			"items": schema.ListNestedAttribute{Computed: true, NestedObject: siteItemSchema, Description: "Matching sites; an empty list when nothing matches."},
 		},
 	}
 }
@@ -82,7 +82,7 @@ func (d *SitesDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	var items []siteItem
+	items := []siteItem{}
 	if hasID {
 		var s client.Site
 		if err := d.client.Get(ctx, fmt.Sprintf("/sites/%d", cfg.ID.ValueInt64()), &s); err != nil {
