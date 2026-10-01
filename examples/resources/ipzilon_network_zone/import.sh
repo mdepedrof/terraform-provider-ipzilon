@@ -1,0 +1,1 @@
+terraform import ipzilon_network_zone.example 12

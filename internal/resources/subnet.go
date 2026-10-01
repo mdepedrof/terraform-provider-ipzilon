@@ -15,6 +15,7 @@ import (
 
 var _ resource.Resource = &SubnetResource{}
 var _ resource.ResourceWithImportState = &SubnetResource{}
+var _ resource.ResourceWithModifyPlan = &SubnetResource{}
 
 type SubnetResource struct{ client *client.Client }
 
@@ -26,6 +27,7 @@ type subnetModel struct {
 	Name        types.String `tfsdk:"name"`
 	CIDR        types.String `tfsdk:"cidr"`
 	Description types.String `tfsdk:"description"`
+	ZoneID      types.Int64  `tfsdk:"zone_id"`
 }
 
 func (r *SubnetResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -52,6 +54,10 @@ func (r *SubnetResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"name":        schema.StringAttribute{Required: true, Description: "Resource name (must be lowercase — the server normalizes all strings)."},
 			"cidr":        schema.StringAttribute{Required: true, Description: "Subnet CIDR (IPv4, /8 or smaller). Changing it keeps the stored addresses that remain inside the new range; stored addresses left outside are released (the provider always sends force: true).", PlanModifiers: []planmodifier.String{cidrLimits(true)}},
 			"description": schema.StringAttribute{Optional: true, Computed: true, Description: "Free-text description."},
+			"zone_id": zoneIDAttribute(
+				"Zone that contains this subnet. When set, IPzilon checks on create and update that the CIDR is inside this zone (IPzilon >= 3.1.0). Always reflects the zone computed by IPzilon (null if none); changing zones never replaces the subnet.",
+				zoneIDFollowsCIDR(),
+			),
 		},
 	}
 }
@@ -75,7 +81,12 @@ func subnetFromAPI(s client.Subnet) subnetModel {
 		Name:        types.StringValue(s.Name),
 		CIDR:        types.StringValue(s.CIDR),
 		Description: types.StringPointerValue(s.Description),
+		ZoneID:      types.Int64PointerValue(s.ZoneID),
 	}
+}
+
+func (r *SubnetResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyPlanZones(ctx, r.client, "zone_id in ipzilon_subnet", req, resp)
 }
 
 func (r *SubnetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -84,14 +95,22 @@ func (r *SubnetResource) Create(ctx context.Context, req resource.CreateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	zoneID := configZoneID(ctx, req.Config, &resp.Diagnostics)
+	if zoneID != nil && !requireZones(r.client, "zone_id in ipzilon_subnet", &resp.Diagnostics) {
+		return
+	}
 	var s client.Subnet
 	if err := r.client.Post(ctx, "/subnets/", client.SubnetCreate{
 		NetworkID:   plan.NetworkID.ValueInt64(),
 		Name:        plan.Name.ValueString(),
 		CIDR:        plan.CIDR.ValueString(),
 		Description: strPtr(plan.Description),
+		ZoneID:      zoneID,
 	}, &s); err != nil {
 		resp.Diagnostics.AddError("Create subnet failed", err.Error())
+		return
+	}
+	if !checkZoneApplied(ctx, r.client, "zone_id in ipzilon_subnet", zoneID, s, true, &resp.Diagnostics) {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, subnetFromAPI(s))...)
@@ -123,6 +142,10 @@ func (r *SubnetResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	zoneID := configZoneID(ctx, req.Config, &resp.Diagnostics)
+	if zoneID != nil && !requireZones(r.client, "zone_id in ipzilon_subnet", &resp.Diagnostics) {
+		return
+	}
 	name := plan.Name.ValueString()
 	cidr := plan.CIDR.ValueString()
 	var s client.Subnet
@@ -135,9 +158,13 @@ func (r *SubnetResource) Update(ctx context.Context, req resource.UpdateRequest,
 		// that stored addresses left outside the new range are released — so
 		// skip the server's interactive
 		// confirmation (which a non-interactive apply couldn't answer anyway).
-		Force: true,
+		Force:  true,
+		ZoneID: zoneID,
 	}, &s); err != nil {
 		resp.Diagnostics.AddError("Update subnet failed", err.Error())
+		return
+	}
+	if !checkZoneApplied(ctx, r.client, "zone_id in ipzilon_subnet", zoneID, s, false, &resp.Diagnostics) {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, subnetFromAPI(s))...)

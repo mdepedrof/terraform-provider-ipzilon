@@ -109,6 +109,10 @@ type Subnet struct {
 	Name        string  `json:"name"`
 	CIDR        string  `json:"cidr"`
 	Description *string `json:"description"`
+	// ZoneID is computed by IPzilon (>= 3.1.0) from CIDR containment: the
+	// zone of the network that contains the subnet, nil if none (and always
+	// nil on IPzilon 3.0.x, which does not return the field).
+	ZoneID *int64 `json:"zone_id"`
 }
 
 type SubnetCreate struct {
@@ -116,6 +120,9 @@ type SubnetCreate struct {
 	Name        string  `json:"name"`
 	CIDR        string  `json:"cidr"`
 	Description *string `json:"description,omitempty"`
+	// ZoneID is an assertion: IPzilon checks that CIDR is inside that zone
+	// and stores nothing (membership is by containment).
+	ZoneID *int64 `json:"zone_id,omitempty"`
 }
 
 type SubnetUpdate struct {
@@ -127,11 +134,56 @@ type SubnetUpdate struct {
 	// still inside keep their record). See SubnetResource.Update: the
 	// provider always sets this to true.
 	Force bool `json:"force,omitempty"`
+	// ZoneID is an assertion on the final CIDR (new or current), like in
+	// SubnetCreate.
+	ZoneID *int64 `json:"zone_id,omitempty"`
 }
 
 type AllocateSubnetBody struct {
 	PrefixLength int64   `json:"prefix_length"`
 	Name         *string `json:"name,omitempty"`
+	Description  *string `json:"description,omitempty"`
+	// ZoneID is the search space: the free block is looked for inside that
+	// zone. Without it, in a network that has zones, IPzilon searches
+	// outside every zone.
+	ZoneID *int64 `json:"zone_id,omitempty"`
+}
+
+// NetworkZone (IPzilon >= 3.1.0)
+
+// NetworkZone maps NetworkZoneResponse. Its usage metrics (total_ips,
+// used_ips, available_ips, alert_percent, alert_metric, subnet_count) are
+// intentionally not mapped: the provider does not expose UI/monitoring data.
+type NetworkZone struct {
+	ID          int64   `json:"id"`
+	NetworkID   int64   `json:"network_id"`
+	Name        string  `json:"name"`
+	CIDR        string  `json:"cidr"`
+	Description *string `json:"description"`
+}
+
+// NetworkZoneCreate is the body of POST /networks/{id}/zones (network_id goes
+// in the path).
+type NetworkZoneCreate struct {
+	Name        string  `json:"name"`
+	CIDR        string  `json:"cidr"`
+	Description *string `json:"description,omitempty"`
+}
+
+// NetworkZoneUpdate is the body of PATCH /zones/{id}. The API rejects a null
+// name or cidr (422), so both are omitted when nil; a null description
+// clears it.
+type NetworkZoneUpdate struct {
+	Name        *string `json:"name,omitempty"`
+	CIDR        *string `json:"cidr,omitempty"`
+	Description *string `json:"description"`
+}
+
+// AllocateZoneBody is the body of POST /networks/{id}/next-available-zone and
+// /last-available-zone.
+type AllocateZoneBody struct {
+	PrefixLength int64   `json:"prefix_length"`
+	Name         string  `json:"name"`
 	Description  *string `json:"description,omitempty"`
 }
 

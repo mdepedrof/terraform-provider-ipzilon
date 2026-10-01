@@ -3,6 +3,7 @@ package resources_test
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 
@@ -125,15 +127,18 @@ resource "ipzilon_subnet" "acc" {
 // accCheckDestroy confirms with the API that every managed object is gone.
 func accCheckDestroy(s *terraform.State) error {
 	paths := map[string]string{
-		"ipzilon_hub":             "/hubs/",
-		"ipzilon_scope":           "/scopes/",
-		"ipzilon_network":         "/networks/",
-		"ipzilon_next_network":    "/networks/",
-		"ipzilon_subnet":          "/subnets/",
-		"ipzilon_next_subnet":     "/subnets/",
-		"ipzilon_last_subnet":     "/subnets/",
-		"ipzilon_ip_address":      "/ips/",
-		"ipzilon_next_ip_address": "/ips/",
+		"ipzilon_hub":               "/hubs/",
+		"ipzilon_scope":             "/scopes/",
+		"ipzilon_network":           "/networks/",
+		"ipzilon_next_network":      "/networks/",
+		"ipzilon_subnet":            "/subnets/",
+		"ipzilon_next_subnet":       "/subnets/",
+		"ipzilon_last_subnet":       "/subnets/",
+		"ipzilon_ip_address":        "/ips/",
+		"ipzilon_next_ip_address":   "/ips/",
+		"ipzilon_network_zone":      "/zones/",
+		"ipzilon_next_network_zone": "/zones/",
+		"ipzilon_last_network_zone": "/zones/",
 	}
 	c := client.New(os.Getenv("IPZILON_API_URL"), os.Getenv("IPZILON_TOKEN"))
 	for _, rs := range s.RootModule().Resources {
@@ -362,3 +367,176 @@ resource "ipzilon_next_network" "acc" {
 }
 `, name))
 }
+
+// accZoneCIDR is a block inside the acceptance network (base.0.0/20) that
+// does not overlap the acceptance subnet (base.0.0/24).
+func accZoneCIDR(t *testing.T, third int) string {
+	t.Helper()
+	return fmt.Sprintf("%s.%d.0/23", strings.TrimSuffix(os.Getenv("IPZILON_TEST_ADDRESS_SPACE"), ".0.0/16"), third)
+}
+
+func TestAccImport_NetworkZone(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+	testAccPreCheck(t)
+	name := accName()
+	accImportTest(t, "ipzilon_network_zone", accChain(t, name, "network"), fmt.Sprintf(`
+resource "ipzilon_network_zone" "acc" {
+  network_id  = ipzilon_network.acc.id
+  name        = "%s"
+  cidr        = "%s"
+  description = "acc zone"
+}
+`, name, accZoneCIDR(t, 4)))
+}
+
+// TestAccNetworkZone_UpdateInPlace changes name, description and CIDR of a
+// zone and checks that the plan updates it in place (same id).
+func TestAccNetworkZone_UpdateInPlace(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+	testAccPreCheck(t)
+	name := accName()
+	parents := accChain(t, name, "network")
+	zone := func(zoneName, cidr, desc string) string {
+		return parents + fmt.Sprintf(`
+resource "ipzilon_network_zone" "acc" {
+  network_id  = ipzilon_network.acc.id
+  name        = "%s"
+  cidr        = "%s"
+  description = "%s"
+}
+`, zoneName, cidr, desc)
+	}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             accCheckDestroy,
+		Steps: []resource.TestStep{
+			{Config: zone(name, accZoneCIDR(t, 4), "before")},
+			{
+				Config: zone(name+"-renamed", accZoneCIDR(t, 6), "after"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("ipzilon_network_zone.acc", plancheck.ResourceActionUpdate),
+					},
+				},
+			},
+			{Config: zone(name+"-renamed", accZoneCIDR(t, 6), "after"), PlanOnly: true},
+		},
+	})
+}
+
+// TestAccSubnetInZone allocates one subnet inside a zone and one outside it,
+// then removes the zone (and the zone_id that referenced it): the subnets are
+// not touched and the computed zone_id becomes null without a diff.
+func TestAccSubnetInZone(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+	testAccPreCheck(t)
+	name := accName()
+	zoneCIDR := accZoneCIDR(t, 4)
+	zone := fmt.Sprintf(`
+resource "ipzilon_network_zone" "acc" {
+  network_id = ipzilon_network.acc.id
+  name       = "%s"
+  cidr       = "%s"
+}
+`, name, zoneCIDR)
+	subnets := func(zoneRef string) string {
+		return fmt.Sprintf(`
+resource "ipzilon_next_subnet" "in_zone" {
+  network_id    = ipzilon_network.acc.id
+  prefix_length = 28
+  name          = "%[1]s-in"
+  %[2]s
+}
+
+resource "ipzilon_next_subnet" "out_zone" {
+  network_id    = ipzilon_network.acc.id
+  prefix_length = 28
+  name          = "%[1]s-out"
+}
+`, name, zoneRef)
+	}
+	parents := accChain(t, name, "network")
+	withZone := parents + zone + subnets("zone_id = ipzilon_network_zone.acc.id")
+	withoutZone := parents + subnets("")
+	_, zoneNet, _ := net.ParseCIDR(zoneCIDR)
+	inZone := func(attr string) resource.CheckResourceAttrWithFunc {
+		return func(value string) error {
+			ip, _, err := net.ParseCIDR(value)
+			if err != nil {
+				return err
+			}
+			if zoneNet.Contains(ip) != (attr == "in") {
+				return fmt.Errorf("cidr %s: inside zone %s = %v", value, zoneCIDR, zoneNet.Contains(ip))
+			}
+			return nil
+		}
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             accCheckDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: withZone,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair("ipzilon_next_subnet.in_zone", "zone_id", "ipzilon_network_zone.acc", "id"),
+					resource.TestCheckResourceAttrWith("ipzilon_next_subnet.in_zone", "cidr", inZone("in")),
+					resource.TestCheckNoResourceAttr("ipzilon_next_subnet.out_zone", "zone_id"),
+					resource.TestCheckResourceAttrWith("ipzilon_next_subnet.out_zone", "cidr", inZone("out")),
+				),
+			},
+			{Config: withZone, PlanOnly: true},
+			{
+				ResourceName:      "ipzilon_next_subnet.in_zone",
+				ImportState:       true,
+				ImportStateVerify: true,
+				Config:            withZone,
+			},
+			{
+				Config: withoutZone,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("ipzilon_next_subnet.in_zone", plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction("ipzilon_network_zone.acc", plancheck.ResourceActionDestroy),
+					},
+				},
+			},
+			{
+				Config: withoutZone,
+				Check:  resource.TestCheckNoResourceAttr("ipzilon_next_subnet.in_zone", "zone_id"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+		},
+	})
+}
+
+func accAllocZoneTest(t *testing.T, direction string) {
+	t.Helper()
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+	testAccPreCheck(t)
+	name := accName()
+	resourceType := "ipzilon_" + direction + "_network_zone"
+	accImportTest(t, resourceType, accChain(t, name, "network"), fmt.Sprintf(`
+resource "%s" "acc" {
+  network_id    = ipzilon_network.acc.id
+  prefix_length = 24
+  name          = "%s"
+}
+`, resourceType, name))
+}
+
+// The import cycle also checks that the assigned CIDR does not change in a
+// second plan (step 3 of accImportTest is a PlanOnly step).
+func TestAccImport_NextNetworkZone(t *testing.T) { accAllocZoneTest(t, "next") }
+
+func TestAccImport_LastNetworkZone(t *testing.T) { accAllocZoneTest(t, "last") }

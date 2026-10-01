@@ -95,6 +95,9 @@ func (p *IPzilon) Resources(_ context.Context) []func() resource.Resource {
 		resources.NewLastSubnetResource,
 		resources.NewIPAddressResource,
 		resources.NewNextIPAddressResource,
+		resources.NewNetworkZoneResource,
+		resources.NewNextNetworkZoneResource,
+		resources.NewLastNetworkZoneResource,
 	}
 }
 
@@ -106,5 +109,6 @@ func (p *IPzilon) DataSources(_ context.Context) []func() datasource.DataSource 
 		datasources.NewNetworksDataSource,
 		datasources.NewSubnetsDataSource,
 		datasources.NewIPAddressesDataSource,
+		datasources.NewNetworkZonesDataSource,
 	}
 }

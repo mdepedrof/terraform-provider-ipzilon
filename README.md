@@ -14,10 +14,13 @@ Manage IP address space in [IPzilon](https://github.com/mdepedrof/ipzilon) — a
 | `ipzilon_last_subnet` | Atomically reserves the **last** free block of a given prefix |
 | `ipzilon_ip_address` | Marks a specific IP as used/reserved |
 | `ipzilon_next_ip_address` | Atomically reserves the **next available** IP in a subnet |
+| `ipzilon_network_zone` | Named zone inside a network that groups the subnets it contains (IPzilon >= 3.1.0) |
+| `ipzilon_next_network_zone` | Atomically reserves the **first** empty block of a given prefix as a zone (IPzilon >= 3.1.0) |
+| `ipzilon_last_network_zone` | Atomically reserves the **last** empty block of a given prefix as a zone (IPzilon >= 3.1.0) |
 
 ## Data Sources
 
-`ipzilon_hubs` · `ipzilon_scopes` · `ipzilon_networks` · `ipzilon_subnets` · `ipzilon_ip_addresses`
+`ipzilon_hubs` · `ipzilon_scopes` · `ipzilon_networks` · `ipzilon_subnets` · `ipzilon_ip_addresses` · `ipzilon_network_zones`
 
 ## Requirements
 
@@ -84,11 +87,46 @@ output "vm_ip" {
 
 A full example with all resources and data sources is in [`examples/terraform/`](examples/terraform/).
 
+## Network zones
+
+Since provider v3.1.0 (requires IPzilon >= 3.1.0), a network can be split into
+named zones that group subnets by CIDR containment:
+
+```hcl
+resource "ipzilon_network_zone" "pooled" {
+  network_id = ipzilon_network.spoke.id
+  name       = "pooled_zone_1"
+  cidr       = "10.0.1.0/25"
+}
+
+# Allocate the first free /28 inside the zone
+resource "ipzilon_next_subnet" "hp" {
+  network_id    = ipzilon_network.spoke.id
+  zone_id       = ipzilon_network_zone.pooled.id
+  prefix_length = 28
+  name          = "hp-pooled-01"
+}
+
+# Find a zone without knowing any id
+data "ipzilon_network_zones" "pooled" {
+  cidr = "10.0.1.0/25"
+}
+```
+
+- `zone_id` on `ipzilon_subnet`, `ipzilon_next_subnet` and `ipzilon_last_subnet`
+  always reflects the zone that contains the subnet according to IPzilon, and
+  never forces a replacement.
+- In a network that has zones, `ipzilon_next_subnet`/`ipzilon_last_subnet`
+  without `zone_id` allocate **outside** every zone.
+- Destroying a zone does not delete its subnets; they are left outside any zone.
+- Using zones against IPzilon 3.0.x fails in `plan` with
+  `... requires IPzilon >= 3.1.0`; configurations without zones keep working.
+
 ## Compatibility
 
 | Provider | IPzilon |
 |----------|---------|
-| `~> 3.0` | >= 3.0.0 |
+| `~> 3.0` | >= 3.0.0 (network zones: >= 3.1.0, provider >= 3.1.0) |
 | `~> 2.2` | 2.x (up to 2.3.1) |
 
 The provider checks the version reported by IPzilon's `/health` endpoint and
