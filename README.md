@@ -122,11 +122,52 @@ data "ipzilon_network_zones" "pooled" {
 - Using zones against IPzilon 3.0.x fails in `plan` with
   `... requires IPzilon >= 3.1.0`; configurations without zones keep working.
 
+## Lookups without ids
+
+Since provider v3.2.0 (requires IPzilon >= 3.2.0), `ipzilon_hubs`,
+`ipzilon_scopes`, `ipzilon_networks` and `ipzilon_subnets` find objects by
+their properties alone, without the id of any parent. The search runs in
+IPzilon:
+
+```hcl
+data "ipzilon_networks" "avd" {
+  cidr = "10.0.16.0/22"
+}
+
+resource "ipzilon_next_subnet" "hosts" {
+  network_id    = one(data.ipzilon_networks.avd.items).id
+  prefix_length = 26
+  name          = "snet-hosts"
+}
+
+# The id of an IP changes when it is released and occupied again: look it up
+# by address (works with IPzilon >= 3.0.0).
+data "ipzilon_ip_addresses" "gw" {
+  subnet_id = 42
+  address   = "10.0.1.17"
+}
+```
+
+- Without a parent id, `cidr`/`address_space` compare the **network**, so the
+  value must have no host bits (`10.0.16.5/22` fails in `plan` suggesting
+  `10.0.16.0/22`). With a parent id the filters behave as before.
+- The same CIDR may exist in several hubs or sites: a lookup by CIDR alone can
+  return several items. Use `one()` when you expect exactly one, or add a
+  parent id to narrow it down.
+- Every listing data source returns `items = []` (never `null`) when nothing
+  matches.
+- A lookup without parent ids against IPzilon < 3.2.0 fails with
+  `... requires IPzilon >= 3.2.0`; lookups with parent ids keep working.
+
+Also since v3.2.0, changing `site_id` of an `ipzilon_hub` moves the hub to the
+new site **in place**, keeping its id and everything under it (IPzilon >=
+3.2.0); against an older IPzilon it fails in `plan`.
+
 ## Compatibility
 
 | Provider | IPzilon |
 |----------|---------|
-| `~> 3.0` | >= 3.0.0 (network zones: >= 3.1.0, provider >= 3.1.0) |
+| `~> 3.0` | >= 3.0.0 (network zones: >= 3.1.0, provider >= 3.1.0; lookups without parent ids and moving hubs between sites: >= 3.2.0, provider >= 3.2.0) |
 | `~> 2.2` | 2.x (up to 2.3.1) |
 
 The provider checks the version reported by IPzilon's `/health` endpoint and

@@ -280,3 +280,25 @@ func TestNetworkSubnetsURL(t *testing.T) {
 		})
 	}
 }
+
+func TestGlobalListURLs(t *testing.T) {
+	cases := []struct {
+		name, got, want string
+	}{
+		{"hubs, no filters", globalHubsURL(nil, nil), "/hubs/"},
+		{"hubs, address_space and name", globalHubsURL(strp("10.0.0.0/16"), strp("hub-weu")), "/hubs/?address_space=10.0.0.0%2F16&name=hub-weu"},
+		{"scopes, no filters", globalScopesURL(nil, nil, nil, nil), "/scopes/"},
+		{"scopes, all filters", globalScopesURL(strp("avd"), strp("10.0.16.0/20"), strp("project"), int64p(12)), "/scopes/?cidr=10.0.16.0%2F20&kind=project&name=avd&parent_id=12"},
+		{"scopes, parent only", globalScopesURL(nil, nil, nil, int64p(12)), "/scopes/?parent_id=12"},
+		{"networks, no filters", globalNetworksURL(nil, nil), "/networks/"},
+		{"networks, cidr", globalNetworksURL(strp("10.0.16.0/22"), nil), "/networks/?cidr=10.0.16.0%2F22"},
+		{"networks, cidr and name", globalNetworksURL(strp("10.0.16.0/22"), strp("avd")), "/networks/?cidr=10.0.16.0%2F22&name=avd"},
+		{"subnets, no filters", globalSubnetsURL(nil, nil, nil, nil), "/subnets/"},
+		{"subnets, all filters", globalSubnetsURL(strp("snet-hosts"), strp("10.0.16.64/26"), int64p(7), int64p(9)), "/subnets/?cidr=10.0.16.64%2F26&name=snet-hosts&network_id=7&zone_id=9"},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, c.got, c.want)
+		}
+	}
+}

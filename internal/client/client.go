@@ -112,6 +112,15 @@ func (c *Client) CheckAPIVersion() error {
 // against IPzilon 3.0.x.
 const MinZonesAPIVersion = "3.1.0"
 
+// MinGlobalListsAPIVersion is the first IPzilon release with the global,
+// filterable listings GET /hubs/, /scopes/, /networks/ and /subnets/. Only
+// lookups without the id of a parent require it.
+const MinGlobalListsAPIVersion = "3.2.0"
+
+// MinHubMoveAPIVersion is the first IPzilon release that accepts site_id in
+// PATCH /hubs/{id}. Older releases ignore the field without an error.
+const MinHubMoveAPIVersion = "3.2.0"
+
 // RequireAPIVersion fails when the server reports a release version older
 // than min, naming the feature that needs it. Like CheckAPIVersion it does
 // not block unknown or non-release versions, and it makes no request: the
@@ -154,6 +163,12 @@ func apiErrorCode(err error) int {
 
 func IsNotFound(err error) bool {
 	return apiErrorCode(err) == http.StatusNotFound
+}
+
+// IsMethodNotAllowed reports a 405, which is what an IPzilon older than 3.2.0
+// answers for the global listings (GET /hubs/, /scopes/, …).
+func IsMethodNotAllowed(err error) bool {
+	return apiErrorCode(err) == http.StatusMethodNotAllowed
 }
 
 func IsConflict(err error) bool {

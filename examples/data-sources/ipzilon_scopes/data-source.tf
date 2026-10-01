@@ -15,3 +15,9 @@ data "ipzilon_scopes" "projects" {
   hub_id = 1
   kind   = "project"
 }
+
+# Lookup a project by kind and name only, without hub_id (IPzilon >= 3.2.0)
+data "ipzilon_scopes" "avd" {
+  kind = "project"
+  name = "avd"
+}

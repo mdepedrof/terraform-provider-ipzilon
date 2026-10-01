@@ -6,12 +6,16 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/mdepedrof/terraform-provider-ipzilon/internal/client"
 )
 
-var _ datasource.DataSource = &SubnetsDataSource{}
+var (
+	_ datasource.DataSource                   = &SubnetsDataSource{}
+	_ datasource.DataSourceWithValidateConfig = &SubnetsDataSource{}
+)
 
 type SubnetsDataSource struct{ client *client.Client }
 
@@ -22,6 +26,8 @@ type subnetsModel struct {
 	NetworkID types.Int64  `tfsdk:"network_id"`
 	ZoneID    types.Int64  `tfsdk:"zone_id"`
 	NoZone    types.Bool   `tfsdk:"no_zone"`
+	Name      types.String `tfsdk:"name"`
+	CIDR      types.String `tfsdk:"cidr"`
 	Items     []subnetItem `tfsdk:"items"`
 }
 
@@ -36,8 +42,8 @@ type subnetItem struct {
 
 var subnetItemSchema = schema.NestedAttributeObject{
 	Attributes: map[string]schema.Attribute{
-		"id":          schema.Int64Attribute{Computed: true},
-		"network_id":  schema.Int64Attribute{Computed: true},
+		"id":          schema.Int64Attribute{Computed: true, Description: "Subnet ID."},
+		"network_id":  schema.Int64Attribute{Computed: true, Description: "ID of the network the subnet belongs to."},
 		"name":        schema.StringAttribute{Computed: true, Description: "Subnet name."},
 		"cidr":        schema.StringAttribute{Computed: true, Description: "Subnet CIDR block."},
 		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
@@ -51,13 +57,15 @@ func (d *SubnetsDataSource) Metadata(_ context.Context, req datasource.MetadataR
 
 func (d *SubnetsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "List subnets. Provide id (singular), network_id or zone_id.",
+		Description: "List subnets. Provide id (singular), network_id, zone_id, name or cidr. name and cidr do not need network_id (IPzilon >= 3.2.0).",
 		Attributes: map[string]schema.Attribute{
 			"id":         schema.Int64Attribute{Optional: true, Description: "Lookup a single subnet by ID. Cannot be combined with other filters."},
 			"network_id": schema.Int64Attribute{Optional: true, Description: "List all subnets for a network."},
 			"zone_id":    schema.Int64Attribute{Optional: true, Description: "List the subnets inside this zone (IPzilon >= 3.1.0). network_id is not required."},
-			"no_zone":    schema.BoolAttribute{Optional: true, Description: "When true, list only the subnets of network_id outside every zone (IPzilon >= 3.1.0). Requires network_id; cannot be combined with zone_id."},
-			"items":      schema.ListNestedAttribute{Computed: true, NestedObject: subnetItemSchema},
+			"no_zone":    schema.BoolAttribute{Optional: true, Description: "When true, list only the subnets of network_id outside every zone (IPzilon >= 3.1.0). Requires network_id; cannot be combined with zone_id, name or cidr."},
+			"name":       schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side, IPzilon >= 3.2.0). network_id is not required."},
+			"cidr":       schema.StringAttribute{Optional: true, Description: "Filter: subnets whose network equals this CIDR (server-side, IPzilon >= 3.2.0). Must be a CIDR without host bits; network_id is not required."},
+			"items":      schema.ListNestedAttribute{Computed: true, NestedObject: subnetItemSchema, Description: "Matching subnets; an empty list when nothing matches."},
 		},
 	}
 }
@@ -88,8 +96,10 @@ func (d *SubnetsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	hasNet := !cfg.NetworkID.IsNull() && !cfg.NetworkID.IsUnknown()
 	hasZone := !cfg.ZoneID.IsNull() && !cfg.ZoneID.IsUnknown()
 	noZone := cfg.NoZone.ValueBool()
+	name, cidr := stringFilter(cfg.Name), stringFilter(cfg.CIDR)
+	global := name != nil || cidr != nil
 
-	if !validateFilters(ctx, hasID, hasNet || hasZone || noZone, resp) {
+	if !validateFilters(ctx, hasID, hasNet || hasZone || noZone || global, resp) {
 		return
 	}
 	if hasZone && noZone {
@@ -100,7 +110,11 @@ func (d *SubnetsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		resp.Diagnostics.AddError("Missing filter", "no_zone requires network_id.")
 		return
 	}
-	if hasZone || noZone {
+	if noZone && global {
+		resp.Diagnostics.AddError("Conflicting filters", "no_zone cannot be combined with name or cidr.")
+		return
+	}
+	if (hasZone || noZone) && !global {
 		if err := d.client.RequireAPIVersion(client.MinZonesAPIVersion, "zone filters in ipzilon_subnets"); err != nil {
 			resp.Diagnostics.AddError("IPzilon version not supported", err.Error())
 			return
@@ -115,6 +129,19 @@ func (d *SubnetsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			return
 		}
 		items = append(items, subnetToItem(s))
+	} else if global {
+		const feature = "name/cidr filters in ipzilon_subnets"
+		if !requireGlobalLists(d.client, feature, &resp.Diagnostics) {
+			return
+		}
+		subnets, err := client.GetAll[client.Subnet](ctx, d.client, globalSubnetsURL(name, cidr, int64Filter(cfg.NetworkID), int64Filter(cfg.ZoneID)))
+		if err != nil {
+			globalListError(&resp.Diagnostics, "List subnets failed", feature, err)
+			return
+		}
+		for _, s := range subnets {
+			items = append(items, subnetToItem(s))
+		}
 	} else {
 		var zoneID *int64
 		networkID := cfg.NetworkID.ValueInt64()
@@ -143,4 +170,21 @@ func (d *SubnetsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	cfg.Items = items
 	resp.Diagnostics.Append(resp.State.Set(ctx, cfg)...)
+}
+
+// ValidateConfig checks in plan that cidr is a network address (name and
+// cidr always use the global listing) and that no_zone, which the global
+// listing does not have, is not combined with name or cidr.
+func (d *SubnetsDataSource) ValidateConfig(ctx context.Context, req datasource.ValidateConfigRequest, resp *datasource.ValidateConfigResponse) {
+	var cfg subnetsModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if cfg.NoZone.ValueBool() && (!cfg.Name.IsNull() || !cfg.CIDR.IsNull()) {
+		resp.Diagnostics.AddAttributeError(path.Root("no_zone"), "Conflicting filters", "no_zone cannot be combined with name or cidr: the global subnet listing has no no_zone filter")
+	}
+	if cfg.ID.IsNull() {
+		validateGlobalCIDR(ctx, req.Config, "cidr", &resp.Diagnostics)
+	}
 }

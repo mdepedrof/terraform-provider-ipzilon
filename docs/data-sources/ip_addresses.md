@@ -3,12 +3,12 @@
 page_title: "ipzilon_ip_addresses Data Source - ipzilon"
 subcategory: ""
 description: |-
-  List IP addresses. Provide id (singular) OR subnet_id with optional status filter. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.
+  List IP addresses. Provide id (singular) OR subnet_id with an optional status or address filter. Without status or address the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.
 ---
 
 # ipzilon_ip_addresses (Data Source)
 
-List IP addresses. Provide id (singular) OR subnet_id with optional status filter. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.
+List IP addresses. Provide id (singular) OR subnet_id with an optional status or address filter. Without status or address the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.
 
 ## Example Usage
 
@@ -28,6 +28,19 @@ data "ipzilon_ip_addresses" "single" {
   id = 42
 }
 
+# Lookup one address of a subnet, occupied or free. The address is the stable
+# way to refer to an IP: its id changes when it is released and occupied
+# again. A free address is returned with id = null and status = "available";
+# an address outside the subnet is an error.
+data "ipzilon_ip_addresses" "gw" {
+  subnet_id = 1
+  address   = "10.0.1.17"
+}
+
+output "gw_status" {
+  value = one(data.ipzilon_ip_addresses.gw.items).status
+}
+
 output "available_ips" {
   value = [for ip in data.ipzilon_ip_addresses.available.items : ip.address if !ip.is_azure_reserved]
 }
@@ -38,13 +51,14 @@ output "available_ips" {
 
 ### Optional
 
+- `address` (String) Look up one address of subnet_id, occupied or free (a free address is returned with id = null and status = available). The address is the stable way to refer to an IP: its id changes when it is released and occupied again. Requires subnet_id; cannot be combined with id or status. Fails if the address is not in the subnet.
 - `id` (Number) Lookup a single IP by ID.
 - `status` (String) Filter by status: available, used, reserved. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost.
 - `subnet_id` (Number) List IPs for a subnet.
 
 ### Read-Only
 
-- `items` (Attributes List) (see [below for nested schema](#nestedatt--items))
+- `items` (Attributes List) Matching IP addresses; an empty list when nothing matches (a lookup by address returns exactly one). (see [below for nested schema](#nestedatt--items))
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`

@@ -17,3 +17,9 @@ data "ipzilon_subnets" "outside_zones" {
   network_id = ipzilon_network.example.id
   no_zone    = true
 }
+
+# Lookup a subnet by its CIDR only, without network_id (IPzilon >= 3.2.0).
+# The same CIDR may exist in several hubs: add network_id to narrow it down.
+data "ipzilon_subnets" "hosts" {
+  cidr = "10.0.16.64/26"
+}
