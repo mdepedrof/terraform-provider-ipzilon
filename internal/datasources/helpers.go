@@ -136,3 +136,43 @@ func validateFilters(ctx context.Context, hasID, hasParent bool, resp *datasourc
 	}
 	return true
 }
+
+// zonesURL builds the request URL for GET /zones/ (IPzilon >= 3.1.0), the
+// global zone listing, with the optional server-side filters network_id,
+// name and cidr. None of them needs an id of a parent.
+func zonesURL(networkID *int64, name, cidr *string) string {
+	q := url.Values{}
+	if networkID != nil {
+		q.Set("network_id", fmt.Sprintf("%d", *networkID))
+	}
+	if name != nil {
+		q.Set("name", *name)
+	}
+	if cidr != nil {
+		q.Set("cidr", *cidr)
+	}
+
+	reqURL := "/zones/"
+	if encoded := q.Encode(); encoded != "" {
+		reqURL += "?" + encoded
+	}
+	return reqURL
+}
+
+// networkSubnetsURL builds the request URL for GET /networks/{id}/subnets
+// with the optional server-side zone filters zone_id/no_zone (mutually
+// exclusive, validated by the caller; IPzilon >= 3.1.0).
+func networkSubnetsURL(networkID int64, zoneID *int64, noZone bool) string {
+	q := url.Values{}
+	if zoneID != nil {
+		q.Set("zone_id", fmt.Sprintf("%d", *zoneID))
+	} else if noZone {
+		q.Set("no_zone", "true")
+	}
+
+	reqURL := fmt.Sprintf("/networks/%d/subnets", networkID)
+	if encoded := q.Encode(); encoded != "" {
+		reqURL += "?" + encoded
+	}
+	return reqURL
+}

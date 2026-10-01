@@ -18,6 +18,7 @@ import (
 
 var _ resource.Resource = &NextSubnetResource{}
 var _ resource.ResourceWithImportState = &NextSubnetResource{}
+var _ resource.ResourceWithModifyPlan = &NextSubnetResource{}
 
 type NextSubnetResource struct{ client *client.Client }
 
@@ -30,6 +31,7 @@ type nextSubnetModel struct {
 	Name         types.String `tfsdk:"name"`
 	Description  types.String `tfsdk:"description"`
 	CIDR         types.String `tfsdk:"cidr"`
+	ZoneID       types.Int64  `tfsdk:"zone_id"`
 }
 
 // nextSubnetFromAPI builds the whole state from the API object; it is the only
@@ -47,6 +49,7 @@ func nextSubnetFromAPI(sub client.Subnet) (nextSubnetModel, error) {
 		Name:         types.StringValue(sub.Name),
 		Description:  types.StringPointerValue(sub.Description),
 		CIDR:         types.StringValue(sub.CIDR),
+		ZoneID:       types.Int64PointerValue(sub.ZoneID),
 	}, nil
 }
 
@@ -96,6 +99,10 @@ func (r *NextSubnetResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"zone_id": zoneIDAttribute(
+				"Zone to allocate the block from (IPzilon >= 3.1.0). Without it, in a network that has zones IPzilon allocates outside every zone. Always reflects the zone computed by IPzilon (null if none); changing it never replaces the subnet.",
+				int64planmodifier.UseStateForUnknown(),
+			),
 		},
 	}
 }
@@ -112,10 +119,18 @@ func (r *NextSubnetResource) Configure(_ context.Context, req resource.Configure
 	r.client = c
 }
 
+func (r *NextSubnetResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyPlanZones(ctx, r.client, "zone_id in ipzilon_next_subnet", req, resp)
+}
+
 func (r *NextSubnetResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan nextSubnetModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	zoneID := configZoneID(ctx, req.Config, &resp.Diagnostics)
+	if zoneID != nil && !requireZones(r.client, "zone_id in ipzilon_next_subnet", &resp.Diagnostics) {
 		return
 	}
 	var s client.Subnet
@@ -125,6 +140,7 @@ func (r *NextSubnetResource) Create(ctx context.Context, req resource.CreateRequ
 			PrefixLength: plan.PrefixLength.ValueInt64(),
 			Name:         strPtr(plan.Name),
 			Description:  strPtr(plan.Description),
+			ZoneID:       zoneID,
 		}, &s,
 	); err != nil {
 		if summary, detail, ok := allocationErrorDiag(err, plan.PrefixLength.ValueInt64(), "ipzilon_subnet"); ok {
@@ -132,6 +148,9 @@ func (r *NextSubnetResource) Create(ctx context.Context, req resource.CreateRequ
 			return
 		}
 		resp.Diagnostics.AddError("Reserve next subnet failed", err.Error())
+		return
+	}
+	if !checkZoneApplied(ctx, r.client, "zone_id in ipzilon_next_subnet", zoneID, s, true, &resp.Diagnostics) {
 		return
 	}
 	setNextSubnetState(ctx, s, &resp.State, &resp.Diagnostics)
@@ -163,13 +182,21 @@ func (r *NextSubnetResource) Update(ctx context.Context, req resource.UpdateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	zoneID := configZoneID(ctx, req.Config, &resp.Diagnostics)
+	if zoneID != nil && !requireZones(r.client, "zone_id in ipzilon_next_subnet", &resp.Diagnostics) {
+		return
+	}
 	name := plan.Name.ValueString()
 	var s client.Subnet
 	if err := r.client.Patch(ctx, fmt.Sprintf("/subnets/%d", state.ID.ValueInt64()), client.SubnetUpdate{
 		Name:        &name,
 		Description: strPtr(plan.Description),
+		ZoneID:      zoneID,
 	}, &s); err != nil {
 		resp.Diagnostics.AddError("Update subnet failed", err.Error())
+		return
+	}
+	if !checkZoneApplied(ctx, r.client, "zone_id in ipzilon_next_subnet", zoneID, s, false, &resp.Diagnostics) {
 		return
 	}
 	setNextSubnetState(ctx, s, &resp.State, &resp.Diagnostics)

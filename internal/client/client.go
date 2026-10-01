@@ -107,6 +107,34 @@ func (c *Client) CheckAPIVersion() error {
 	return nil
 }
 
+// MinZonesAPIVersion is the first IPzilon release with network zones. Only
+// configurations that use zones require it; everything else keeps working
+// against IPzilon 3.0.x.
+const MinZonesAPIVersion = "3.1.0"
+
+// RequireAPIVersion fails when the server reports a release version older
+// than min, naming the feature that needs it. Like CheckAPIVersion it does
+// not block unknown or non-release versions, and it makes no request: the
+// version was read from /health when the client was created.
+func (c *Client) RequireAPIVersion(min, feature string) error {
+	have := semverRe.FindStringSubmatch(c.APIVersion)
+	want := semverRe.FindStringSubmatch(min)
+	if have == nil || want == nil {
+		return nil
+	}
+	for i := 1; i <= 3; i++ {
+		h, _ := strconv.Atoi(have[i])
+		w, _ := strconv.Atoi(want[i])
+		if h != w {
+			if h < w {
+				return fmt.Errorf("%w: %s requires IPzilon >= %s (server reports %s)", ErrUnsupportedAPIVersion, feature, min, c.APIVersion)
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
 type APIError struct {
 	Code    int
 	Message string

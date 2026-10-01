@@ -434,3 +434,27 @@ func TestErrorHelpers(t *testing.T) {
 		t.Error("IsNotFound mismatch")
 	}
 }
+
+func TestRequireAPIVersion(t *testing.T) {
+	cases := map[string]bool{ // version -> want error
+		"3.0.1":     true,
+		"3.0.0":     true,
+		"2.3.1":     true,
+		"3.1.0":     false,
+		"3.1.5":     false,
+		"3.2.0":     false,
+		"4.0.0":     false,
+		"":          false,
+		"0.0.0-dev": false,
+	}
+	for v, wantErr := range cases {
+		err := (&Client{APIVersion: v}).RequireAPIVersion(MinZonesAPIVersion, "network zones")
+		if (err != nil) != wantErr {
+			t.Errorf("RequireAPIVersion(%q) = %v, wantErr %v", v, err, wantErr)
+		}
+		want := "network zones requires IPzilon >= 3.1.0 (server reports " + v + ")"
+		if err != nil && (!errors.Is(err, ErrUnsupportedAPIVersion) || !strings.Contains(err.Error(), want)) {
+			t.Errorf("RequireAPIVersion(%q) = %v, want ErrUnsupportedAPIVersion containing %q", v, err, want)
+		}
+	}
+}

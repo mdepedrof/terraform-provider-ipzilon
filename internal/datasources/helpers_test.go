@@ -235,3 +235,48 @@ func TestSiteHubsURL(t *testing.T) {
 		})
 	}
 }
+
+func int64p(n int64) *int64 { return &n }
+
+func TestZonesURL(t *testing.T) {
+	cases := []struct {
+		name      string
+		networkID *int64
+		zoneName  *string
+		cidr      *string
+		want      string
+	}{
+		{name: "no filters", want: "/zones/"},
+		{name: "network_id only", networkID: int64p(7), want: "/zones/?network_id=7"},
+		{name: "name only", zoneName: strp("pooled_zone_1"), want: "/zones/?name=pooled_zone_1"},
+		{name: "cidr only", cidr: strp("10.0.16.0/23"), want: "/zones/?cidr=10.0.16.0%2F23"},
+		{name: "all combined", networkID: int64p(7), zoneName: strp("z"), cidr: strp("10.0.16.0/23"), want: "/zones/?cidr=10.0.16.0%2F23&name=z&network_id=7"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := zonesURL(c.networkID, c.zoneName, c.cidr); got != c.want {
+				t.Errorf("zonesURL() = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestNetworkSubnetsURL(t *testing.T) {
+	cases := []struct {
+		name   string
+		zoneID *int64
+		noZone bool
+		want   string
+	}{
+		{name: "no filter", want: "/networks/7/subnets"},
+		{name: "zone_id", zoneID: int64p(12), want: "/networks/7/subnets?zone_id=12"},
+		{name: "no_zone", noZone: true, want: "/networks/7/subnets?no_zone=true"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := networkSubnetsURL(7, c.zoneID, c.noZone); got != c.want {
+				t.Errorf("networkSubnetsURL() = %q, want %q", got, c.want)
+			}
+		})
+	}
+}

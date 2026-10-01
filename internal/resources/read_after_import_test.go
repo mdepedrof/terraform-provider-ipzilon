@@ -54,16 +54,16 @@ var importCases = []importCase{
 		newResource: resources.NewNextSubnetResource,
 		id:          11,
 		path:        "/subnets/11",
-		body:        `{"id":11,"network_id":3,"name":"app","cidr":"10.1.4.0/24","description":"app subnet"}`,
-		want:        map[string]any{"network_id": int64(3), "prefix_length": int64(24), "cidr": "10.1.4.0/24"},
+		body:        `{"id":11,"network_id":3,"name":"app","cidr":"10.1.4.0/24","description":"app subnet","zone_id":30}`,
+		want:        map[string]any{"network_id": int64(3), "prefix_length": int64(24), "cidr": "10.1.4.0/24", "zone_id": int64(30)},
 	},
 	{
 		name:        "ipzilon_last_subnet",
 		newResource: resources.NewLastSubnetResource,
 		id:          12,
 		path:        "/subnets/12",
-		body:        `{"id":12,"network_id":3,"name":"tail","cidr":"10.1.255.192/26","description":null}`,
-		want:        map[string]any{"network_id": int64(3), "prefix_length": int64(26)},
+		body:        `{"id":12,"network_id":3,"name":"tail","cidr":"10.1.255.192/26","description":null,"zone_id":null}`,
+		want:        map[string]any{"network_id": int64(3), "prefix_length": int64(26), "zone_id": nil},
 	},
 	{
 		name:        "ipzilon_next_network",
@@ -102,8 +102,34 @@ var importCases = []importCase{
 		newResource: resources.NewSubnetResource,
 		id:          9,
 		path:        "/subnets/9",
-		body:        `{"id":9,"network_id":6,"name":"sn","cidr":"10.1.0.0/24","description":null}`,
-		want:        map[string]any{"network_id": int64(6), "cidr": "10.1.0.0/24", "description": nil},
+		body:        `{"id":9,"network_id":6,"name":"sn","cidr":"10.1.0.0/24","description":null,"zone_id":30}`,
+		want:        map[string]any{"network_id": int64(6), "cidr": "10.1.0.0/24", "description": nil, "zone_id": int64(30)},
+	},
+	{
+		// The usage metrics of NetworkZoneResponse are in the body to check
+		// that they are ignored (the provider does not expose them).
+		name:        "ipzilon_network_zone",
+		newResource: resources.NewNetworkZoneResource,
+		id:          12,
+		path:        "/zones/12",
+		body:        `{"id":12,"network_id":7,"name":"pooled_zone_1","cidr":"10.0.16.0/23","description":null,"total_ips":512,"used_ips":32,"available_ips":480,"alert_percent":6,"alert_metric":"block_alloc","subnet_count":2}`,
+		want:        map[string]any{"network_id": int64(7), "name": "pooled_zone_1", "cidr": "10.0.16.0/23", "description": nil},
+	},
+	{
+		name:        "ipzilon_next_network_zone",
+		newResource: resources.NewNextNetworkZoneResource,
+		id:          13,
+		path:        "/zones/13",
+		body:        `{"id":13,"network_id":7,"name":"personal_zone","cidr":"10.0.19.128/25","description":"personal","total_ips":128,"used_ips":0,"available_ips":128,"alert_percent":0,"alert_metric":"block_alloc","subnet_count":0}`,
+		want:        map[string]any{"network_id": int64(7), "prefix_length": int64(25), "cidr": "10.0.19.128/25"},
+	},
+	{
+		name:        "ipzilon_last_network_zone",
+		newResource: resources.NewLastNetworkZoneResource,
+		id:          14,
+		path:        "/zones/14",
+		body:        `{"id":14,"network_id":7,"name":"tail_zone","cidr":"10.0.19.0/26","description":null}`,
+		want:        map[string]any{"network_id": int64(7), "prefix_length": int64(26), "name": "tail_zone"},
 	},
 }
 
@@ -306,15 +332,16 @@ func TestStateMatchesAcrossOperations(t *testing.T) {
 			// The plan carries the values the user configured; here every
 			// attribute is known and equal to the API object.
 			plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: want.Raw}
+			cfg := tfsdk.Config{Schema: schemaResp.Schema, Raw: want.Raw}
 			nullState := tfsdk.State{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)}
 
 			createResp := resource.CreateResponse{State: nullState}
-			r.Create(ctx, resource.CreateRequest{Plan: plan}, &createResp)
+			r.Create(ctx, resource.CreateRequest{Config: cfg, Plan: plan}, &createResp)
 			if createResp.Diagnostics.HasError() {
 				t.Fatalf("Create: %v", createResp.Diagnostics)
 			}
 			updateResp := resource.UpdateResponse{State: tfsdk.State{Schema: schemaResp.Schema, Raw: want.Raw}}
-			r.Update(ctx, resource.UpdateRequest{Plan: plan, State: stateWithOnlyID(t, schemaResp, tc.id)}, &updateResp)
+			r.Update(ctx, resource.UpdateRequest{Config: cfg, Plan: plan, State: stateWithOnlyID(t, schemaResp, tc.id)}, &updateResp)
 			if updateResp.Diagnostics.HasError() {
 				t.Fatalf("Update: %v", updateResp.Diagnostics)
 			}
@@ -339,7 +366,7 @@ func TestUpdateMirrorsNormalizedAPIResponse(t *testing.T) {
 		patch string
 	}{
 		{"ipzilon_next_ip_address", `{"id":2204,"subnet_id":65,"address":"10.1.4.10","status":"used","is_azure_reserved":false,"hostname":"normalized-host","description":"normalized"}`},
-		{"ipzilon_next_subnet", `{"id":11,"network_id":3,"name":"normalized","cidr":"10.1.4.0/24","description":"normalized"}`},
+		{"ipzilon_next_subnet", `{"id":11,"network_id":3,"name":"normalized","cidr":"10.1.4.0/24","description":"normalized","zone_id":30}`},
 		{"ipzilon_next_network", `{"id":21,"scope_id":8,"name":"normalized","cidr":"10.2.0.0/22","description":"normalized"}`},
 	}
 	for _, c := range cases {
@@ -366,8 +393,9 @@ func TestUpdateMirrorsNormalizedAPIResponse(t *testing.T) {
 
 			resp := resource.UpdateResponse{State: tfsdk.State{Schema: schemaResp.Schema, Raw: original.Raw}}
 			r.Update(ctx, resource.UpdateRequest{
-				Plan:  tfsdk.Plan{Schema: schemaResp.Schema, Raw: original.Raw},
-				State: tfsdk.State{Schema: schemaResp.Schema, Raw: original.Raw},
+				Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: original.Raw},
+				Plan:   tfsdk.Plan{Schema: schemaResp.Schema, Raw: original.Raw},
+				State:  tfsdk.State{Schema: schemaResp.Schema, Raw: original.Raw},
 			}, &resp)
 			if resp.Diagnostics.HasError() {
 				t.Fatalf("Update: %v", resp.Diagnostics)
@@ -441,6 +469,28 @@ func TestReadKeepsHostnameEqualToDescription(t *testing.T) {
 			}
 			assertComplete(t, tc.name, schemaResp, resp.State)
 			assertWant(t, tc.name, attrValues(t, resp.State), map[string]any{"hostname": "ilb-events", "description": "ilb-events"})
+		})
+	}
+}
+
+// TestReadAfterImportSubnetZoneIDNull covers subnets outside every zone (and
+// IPzilon 3.0.x, which does not return zone_id): zone_id is null, not unknown.
+func TestReadAfterImportSubnetZoneIDNull(t *testing.T) {
+	bodies := map[string]string{
+		"zone_id_null":    `{"id":9,"network_id":6,"name":"sn","cidr":"10.1.0.0/24","description":null,"zone_id":null}`,
+		"zone_id_missing": `{"id":9,"network_id":6,"name":"sn","cidr":"10.1.0.0/24","description":null}`,
+	}
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			tc := importCase{name: "ipzilon_subnet", newResource: resources.NewSubnetResource, id: 9, path: "/subnets/9", body: body}
+			r, schemaResp := configured(t, tc, newAPIServer(t, tc.path, tc.body))
+			resp := resource.ReadResponse{State: stateWithOnlyID(t, schemaResp, tc.id)}
+			r.Read(context.Background(), resource.ReadRequest{State: stateWithOnlyID(t, schemaResp, tc.id)}, &resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Read: %v", resp.Diagnostics)
+			}
+			assertComplete(t, tc.name, schemaResp, resp.State)
+			assertWant(t, tc.name, attrValues(t, resp.State), map[string]any{"zone_id": nil})
 		})
 	}
 }
