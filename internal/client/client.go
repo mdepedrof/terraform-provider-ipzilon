@@ -30,6 +30,11 @@ const (
 	// pageSize is the largest page IPzilon accepts; it minimises the number
 	// of requests (and rate-limit quota) spent walking a listing.
 	pageSize = 1000
+
+	// invalidTokensBlockedMessage is the 429 error IPzilon >= 3.4.0 returns
+	// while it blocks API-token requests from a client address after too many
+	// requests with non-existent tokens (even when the token in use is valid).
+	invalidTokensBlockedMessage = "Too many invalid API tokens"
 )
 
 type Client struct {
@@ -194,6 +199,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 
 	var elapsed time.Duration
+	warnedInvalidTokens := false
 	for retries := 0; ; retries++ {
 		tflog.Debug(ctx, "IPzilon request", map[string]any{"method": method, "path": path})
 		resp, respBody, err := c.send(ctx, method, path, data)
@@ -207,6 +213,13 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 				apiErr := parseAPIError(resp.StatusCode, respBody)
 				apiErr.Message += fmt.Sprintf(" (gave up after %d retries in %s)", retries, elapsed)
 				return apiErr
+			}
+			if resp.StatusCode == http.StatusTooManyRequests && !warnedInvalidTokens &&
+				strings.HasPrefix(parseAPIError(resp.StatusCode, respBody).Message, invalidTokensBlockedMessage) {
+				tflog.Warn(ctx, "IPzilon is temporarily blocking API-token requests from this client address because too many requests with non-existent API tokens came from it; this is not the rate-limit quota of the configured token. Retrying after Retry-After. Check for processes behind the same address (NAT, shared runner) using a deleted or mistyped token, including this provider's own token.", map[string]any{
+					"method": method, "path": path, "status": resp.StatusCode, "wait": wait.String(),
+				})
+				warnedInvalidTokens = true
 			}
 			tflog.Debug(ctx, "retrying IPzilon request", map[string]any{
 				"method": method, "path": path, "status": resp.StatusCode,
