@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflogtest"
 )
 
 // fakeSleeper records the waits requested by the retry loop without sleeping.
@@ -267,6 +270,103 @@ func TestDo_ErrorFieldUsedWhenNoDetail(t *testing.T) {
 	if !errors.As(err, &apiErr) || apiErr.Message != "Rate limit exceeded: x" {
 		t.Errorf("err = %v, want message from error field", err)
 	}
+}
+
+// --- 005: warning for IPzilon's invalid-token block ------------------------
+
+// warnLogs returns the warn-level entries written to buf by a tflogtest logger.
+func warnLogs(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	entries, err := tflogtest.MultilineJSONDecode(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("decode logs: %v", err)
+	}
+	var warns []map[string]any
+	for _, e := range entries {
+		if e["@level"] == "warn" {
+			warns = append(warns, e)
+		}
+	}
+	return warns
+}
+
+func TestDo_InvalidTokenBlockWarnsOnce(t *testing.T) {
+	blocked := response{code: 429, body: `{"error":"Too many invalid API tokens"}`, retryAfter: "42"}
+	srv, calls, _ := sequenceServer(t, []response{blocked, blocked, {code: 200, body: `{"id":1}`}})
+	c, fs := newTestClient(srv)
+	var buf bytes.Buffer
+	ctx := tflogtest.RootLogger(context.Background(), &buf)
+
+	var out map[string]int
+	if err := c.Get(ctx, "/x", &out); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if *calls != 3 {
+		t.Errorf("calls = %d, want 3", *calls)
+	}
+	if len(fs.waits) != 2 || fs.waits[0] != 42*time.Second || fs.waits[1] != 42*time.Second {
+		t.Errorf("waits = %v, want [42s 42s]", fs.waits)
+	}
+
+	warns := warnLogs(t, &buf)
+	if len(warns) != 1 {
+		t.Fatalf("warnings = %d, want 1: %v", len(warns), warns)
+	}
+	w := warns[0]
+	msg, _ := w["@message"].(string)
+	for _, want := range []string{"non-existent API tokens", "not the rate-limit quota of the configured token"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message %q does not contain %q", msg, want)
+		}
+	}
+	if w["method"] != "GET" || w["path"] != "/x" || w["status"] != float64(429) || w["wait"] != "42s" {
+		t.Errorf("fields = method:%v path:%v status:%v wait:%v", w["method"], w["path"], w["status"], w["wait"])
+	}
+	if logs := buf.String(); strings.Contains(logs, "test-token") || strings.Contains(logs, "Authorization") {
+		t.Errorf("logs leak credentials: %s", logs)
+	}
+}
+
+func TestDo_OtherRetriesDoNotWarnInvalidToken(t *testing.T) {
+	ok := response{code: 200, body: `{"id":1}`}
+	for name, first := range map[string]response{
+		"rate limit": {code: 429, body: `{"error":"Rate limit exceeded: 60 per 1 minute"}`, retryAfter: "2"},
+		"busy":       {code: 503, retryAfter: "1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv, _, _ := sequenceServer(t, []response{first, ok})
+			c, _ := newTestClient(srv)
+			var buf bytes.Buffer
+			ctx := tflogtest.RootLogger(context.Background(), &buf)
+
+			if err := c.Get(ctx, "/x", nil); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if warns := warnLogs(t, &buf); len(warns) != 0 {
+				t.Errorf("warnings = %v, want none", warns)
+			}
+		})
+	}
+
+	t.Run("gives up without retrying", func(t *testing.T) {
+		srv, _, _ := sequenceServer(t, []response{
+			{code: 429, body: `{"error":"Too many invalid API tokens"}`, retryAfter: "60"},
+		})
+		c, _ := newTestClient(srv)
+		c.retryMaxElapsed = 30 * time.Second
+		var buf bytes.Buffer
+		ctx := tflogtest.RootLogger(context.Background(), &buf)
+
+		err := c.Get(ctx, "/x", nil)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != 429 ||
+			!strings.HasPrefix(apiErr.Message, "Too many invalid API tokens (gave up after 0 retries") {
+			t.Errorf("err = %v, want 429 giving up after 0 retries", err)
+		}
+		if warns := warnLogs(t, &buf); len(warns) != 0 {
+			t.Errorf("warnings = %v, want none", warns)
+		}
+	})
 }
 
 // --- T003: pagination -------------------------------------------------------

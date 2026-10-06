@@ -35,7 +35,7 @@ func (p *IPzilon) Metadata(_ context.Context, _ provider.MetadataRequest, resp *
 
 func (p *IPzilon) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manage IP address space in IPzilon — an IPAM for Azure and on-premise networks. Supports sites, hubs, scopes (landing zones and projects), networks, subnets, and individual IP addresses. Requires IPzilon >= 3.0.0. Requests rejected with 429 (rate limit) or 503 (server busy) are retried honouring Retry-After for up to 10 minutes per request; each API token has its own rate-limit quota.",
+		Description: "Manage IP address space in IPzilon — an IPAM for Azure and on-premise networks. Supports sites, hubs, scopes (landing zones and projects), networks, subnets, and individual IP addresses. Requires IPzilon >= 3.0.0. Requests rejected with 429 (rate limit) or 503 (server busy) are retried honouring Retry-After for up to 10 minutes per request. Each API token has its own rate-limit quota; in addition, IPzilon >= 3.4.0 blocks API-token requests from a client address for up to a minute (\"Too many invalid API tokens\") after too many requests with non-existent tokens from that address, even when the token in use is valid. Those 429s are retried the same way.",
 		Attributes: map[string]schema.Attribute{
 			"api_url": schema.StringAttribute{
 				Optional:    true,
