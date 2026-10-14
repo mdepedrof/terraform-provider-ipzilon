@@ -1,4 +1,4 @@
-# Runs on every PR and push to main: build, test, lint, docs check.
+# Runs on every PR and push to main: build, test, lint, mock tests, docs check.
 
 name: ci
 
@@ -32,6 +32,29 @@ jobs:
 
       - name: go test
         run: go test ./...
+        timeout-minutes: 5
+
+  mock:
+    name: Mock tests (terraform test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.16.x
+          terraform_wrapper: false
+
+      # terraform test with mock_provider against a fresh build; no live API.
+      - name: make testmock
+        run: make testmock
         timeout-minutes: 5
 
   docs:

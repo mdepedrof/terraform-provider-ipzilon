@@ -40,15 +40,13 @@ type subnetItem struct {
 	ZoneID      types.Int64  `tfsdk:"zone_id"`
 }
 
-var subnetItemSchema = schema.NestedAttributeObject{
-	Attributes: map[string]schema.Attribute{
-		"id":          schema.Int64Attribute{Computed: true, Description: "Subnet ID."},
-		"network_id":  schema.Int64Attribute{Computed: true, Description: "ID of the network the subnet belongs to."},
-		"name":        schema.StringAttribute{Computed: true, Description: "Subnet name."},
-		"cidr":        schema.StringAttribute{Computed: true, Description: "Subnet CIDR block."},
-		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
-		"zone_id":     schema.Int64Attribute{Computed: true, Description: "Zone that contains the subnet (null if none; IPzilon >= 3.1.0)."},
-	},
+var subnetItemFields = []itemField{
+	{"id", types.Int64Type, "Subnet ID."},
+	{"network_id", types.Int64Type, "ID of the network the subnet belongs to."},
+	{"name", types.StringType, "Subnet name."},
+	{"cidr", types.StringType, "Subnet CIDR block."},
+	{"description", types.StringType, "Free-text description."},
+	{"zone_id", types.Int64Type, "Zone that contains the subnet (null if none; IPzilon >= 3.1.0)."},
 }
 
 func (d *SubnetsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -65,7 +63,7 @@ func (d *SubnetsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 			"no_zone":    schema.BoolAttribute{Optional: true, Description: "When true, list only the subnets of network_id outside every zone (IPzilon >= 3.1.0). Requires network_id; cannot be combined with zone_id, name or cidr."},
 			"name":       schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side, IPzilon >= 3.2.0). network_id is not required."},
 			"cidr":       schema.StringAttribute{Optional: true, Description: "Filter: subnets whose network equals this CIDR (server-side, IPzilon >= 3.2.0). Must be a CIDR without host bits; network_id is not required."},
-			"items":      schema.ListNestedAttribute{Computed: true, NestedObject: subnetItemSchema, Description: "Matching subnets; an empty list when nothing matches."},
+			"items":      itemsAttribute("Matching subnets; an empty list when nothing matches.", subnetItemFields),
 		},
 	}
 }

@@ -41,14 +41,14 @@ output "site_type" {
 
 ### Read-Only
 
-- `items` (Attributes List) Matching sites; an empty list when nothing matches. (see [below for nested schema](#nestedatt--items))
+- `items` (List of Object) Matching sites; an empty list when nothing matches. Each item has: `id` — Site ID. `name` — Site name. `type` — Site type. `description` — Free-text description. (see [below for nested schema](#nestedatt--items))
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`
 
 Read-Only:
 
-- `description` (String) Free-text description.
-- `id` (Number) Site ID.
-- `name` (String) Site name.
-- `type` (String) Site type.
+- `description` (String)
+- `id` (Number)
+- `name` (String)
+- `type` (String)

@@ -33,14 +33,12 @@ type networkZoneItem struct {
 	Description types.String `tfsdk:"description"`
 }
 
-var networkZoneItemSchema = schema.NestedAttributeObject{
-	Attributes: map[string]schema.Attribute{
-		"id":          schema.Int64Attribute{Computed: true, Description: "Zone ID."},
-		"network_id":  schema.Int64Attribute{Computed: true, Description: "Network the zone belongs to."},
-		"name":        schema.StringAttribute{Computed: true, Description: "Zone name (unique within its network)."},
-		"cidr":        schema.StringAttribute{Computed: true, Description: "Zone CIDR block."},
-		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
-	},
+var networkZoneItemFields = []itemField{
+	{"id", types.Int64Type, "Zone ID."},
+	{"network_id", types.Int64Type, "Network the zone belongs to."},
+	{"name", types.StringType, "Zone name (unique within its network)."},
+	{"cidr", types.StringType, "Zone CIDR block."},
+	{"description", types.StringType, "Free-text description."},
 }
 
 func (d *NetworkZonesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -57,7 +55,7 @@ func (d *NetworkZonesDataSource) Schema(_ context.Context, _ datasource.SchemaRe
 			"network_id": schema.Int64Attribute{Optional: true, Description: "Filter: zones of this network (server-side)."},
 			"name":       schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side)."},
 			"cidr":       schema.StringAttribute{Optional: true, Description: "Filter: exact cidr match (server-side)."},
-			"items":      schema.ListNestedAttribute{Computed: true, NestedObject: networkZoneItemSchema, Description: "Matching zones, ordered by CIDR."},
+			"items":      itemsAttribute("Matching zones, ordered by CIDR.", networkZoneItemFields),
 		},
 	}
 }

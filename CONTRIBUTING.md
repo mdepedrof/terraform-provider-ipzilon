@@ -39,6 +39,7 @@ With `dev_overrides` active, skip `terraform init` — go directly to `terraform
 make build      # compile
 make test       # unit tests
 make testacc    # acceptance tests (requires a live API — set IPZILON_API_URL and IPZILON_TOKEN)
+make testmock   # terraform test with mock_provider in test/mock/ (requires terraform, no API)
 make fmt        # format code
 make generate   # regenerate docs/ from schema
 ```

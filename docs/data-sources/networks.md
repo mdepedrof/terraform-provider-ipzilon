@@ -53,15 +53,15 @@ output "avd_found" {
 
 ### Read-Only
 
-- `items` (Attributes List) Matching networks; an empty list when nothing matches. (see [below for nested schema](#nestedatt--items))
+- `items` (List of Object) Matching networks; an empty list when nothing matches. Each item has: `id` — Network ID. `scope_id` — ID of the scope the network belongs to. `name` — Network name. `cidr` — Network CIDR block. `description` — Free-text description. (see [below for nested schema](#nestedatt--items))
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`
 
 Read-Only:
 
-- `cidr` (String) Network CIDR block.
-- `description` (String) Free-text description.
-- `id` (Number) Network ID.
-- `name` (String) Network name.
-- `scope_id` (Number) ID of the scope the network belongs to.
+- `cidr` (String)
+- `description` (String)
+- `id` (Number)
+- `name` (String)
+- `scope_id` (Number)

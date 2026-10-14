@@ -53,17 +53,17 @@ data "ipzilon_scopes" "avd" {
 
 ### Read-Only
 
-- `items` (Attributes List) Matching scopes; an empty list when nothing matches. (see [below for nested schema](#nestedatt--items))
+- `items` (List of Object) Matching scopes; an empty list when nothing matches. Each item has: `id` — Scope ID. `hub_id` — ID of the hub the scope belongs to. `parent_id` — Parent scope ID (null for root scopes). `name` — Scope name. `kind` — Scope kind (landing_zone or project). `cidr` — CIDR block assigned to this scope. `description` — Free-text description. (see [below for nested schema](#nestedatt--items))
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`
 
 Read-Only:
 
-- `cidr` (String) CIDR block assigned to this scope.
-- `description` (String) Free-text description.
-- `hub_id` (Number) ID of the hub the scope belongs to.
-- `id` (Number) Scope ID.
-- `kind` (String) Scope kind (landing_zone or project).
-- `name` (String) Scope name.
-- `parent_id` (Number) Parent scope ID (null for root scopes).
+- `cidr` (String)
+- `description` (String)
+- `hub_id` (Number)
+- `id` (Number)
+- `kind` (String)
+- `name` (String)
+- `parent_id` (Number)

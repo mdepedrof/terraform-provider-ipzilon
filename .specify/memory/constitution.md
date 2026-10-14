@@ -62,7 +62,9 @@ tiene un coste operativo alto.
 - `docs/` MUST generarse con `tfplugindocs` (`make generate`) y nunca editarse a mano; el cambio
   de esquema y la documentación regenerada MUST ir en el mismo commit/PR. La CI lo verifica.
 - Cada recurso y data source MUST tener ejemplo en `examples/` (`resource.tf` o
-  `data-source.tf`) y cada atributo MUST tener `Description`.
+  `data-source.tf`) y cada atributo MUST tener `Description`. Los campos de un atributo de tipo
+  lista de objetos (sin descripción propia en el esquema) MUST describirse en la `Description`
+  del atributo que los contiene.
 - Las versiones fijadas en ejemplos y en `docs/index.md` MUST coincidir con la versión MAJOR
   vigente.
 - Los ejemplos MUST NOT contener credenciales ni datos sensibles reales.
@@ -130,4 +132,4 @@ seguridad automática y los de aceptación la validación previa a la release.
   principios, y cada revisión de PR MUST verificarlos. Cualquier excepción MUST justificarse
   explícitamente en el plan o en la PR.
 
-**Version**: 1.0.2 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-29
+**Version**: 1.0.3 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-14

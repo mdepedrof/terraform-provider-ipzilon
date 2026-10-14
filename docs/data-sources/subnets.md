@@ -54,16 +54,16 @@ data "ipzilon_subnets" "hosts" {
 
 ### Read-Only
 
-- `items` (Attributes List) Matching subnets; an empty list when nothing matches. (see [below for nested schema](#nestedatt--items))
+- `items` (List of Object) Matching subnets; an empty list when nothing matches. Each item has: `id` — Subnet ID. `network_id` — ID of the network the subnet belongs to. `name` — Subnet name. `cidr` — Subnet CIDR block. `description` — Free-text description. `zone_id` — Zone that contains the subnet (null if none; IPzilon >= 3.1.0). (see [below for nested schema](#nestedatt--items))
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`
 
 Read-Only:
 
-- `cidr` (String) Subnet CIDR block.
-- `description` (String) Free-text description.
-- `id` (Number) Subnet ID.
-- `name` (String) Subnet name.
-- `network_id` (Number) ID of the network the subnet belongs to.
-- `zone_id` (Number) Zone that contains the subnet (null if none; IPzilon >= 3.1.0).
+- `cidr` (String)
+- `description` (String)
+- `id` (Number)
+- `name` (String)
+- `network_id` (Number)
+- `zone_id` (Number)

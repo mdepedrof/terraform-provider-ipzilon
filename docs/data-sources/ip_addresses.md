@@ -58,17 +58,17 @@ output "available_ips" {
 
 ### Read-Only
 
-- `items` (Attributes List) Matching IP addresses; an empty list when nothing matches (a lookup by address returns exactly one). (see [below for nested schema](#nestedatt--items))
+- `items` (List of Object) Matching IP addresses; an empty list when nothing matches (a lookup by address returns exactly one). Each item has: `id` — IP record ID. Null for free addresses that have no stored record (IPzilon >= 3.0). `subnet_id` — Subnet containing this address. `address` — IP address. `status` — IP status: available, used, or reserved. `is_azure_reserved` — True for IPs auto-reserved by Azure (.1/.2/.3/broadcast). `hostname` — Hostname — semantic name for the address. `description` — Free-text description. (see [below for nested schema](#nestedatt--items))
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`
 
 Read-Only:
 
-- `address` (String) IP address.
-- `description` (String) Free-text description.
-- `hostname` (String) Hostname — semantic name for the address.
-- `id` (Number) IP record ID. Null for free addresses that have no stored record (IPzilon >= 3.0).
-- `is_azure_reserved` (Boolean) True for IPs auto-reserved by Azure (.1/.2/.3/broadcast).
-- `status` (String) IP status: available, used, or reserved.
-- `subnet_id` (Number) Subnet containing this address.
+- `address` (String)
+- `description` (String)
+- `hostname` (String)
+- `id` (Number)
+- `is_azure_reserved` (Boolean)
+- `status` (String)
+- `subnet_id` (Number)
