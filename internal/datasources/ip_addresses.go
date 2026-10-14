@@ -41,16 +41,14 @@ type ipAddrItem struct {
 	Description     types.String `tfsdk:"description"`
 }
 
-var ipAddrItemSchema = schema.NestedAttributeObject{
-	Attributes: map[string]schema.Attribute{
-		"id":                schema.Int64Attribute{Computed: true, Description: "IP record ID. Null for free addresses that have no stored record (IPzilon >= 3.0)."},
-		"subnet_id":         schema.Int64Attribute{Computed: true, Description: "Subnet containing this address."},
-		"address":           schema.StringAttribute{Computed: true, Description: "IP address."},
-		"status":            schema.StringAttribute{Computed: true, Description: "IP status: available, used, or reserved."},
-		"is_azure_reserved": schema.BoolAttribute{Computed: true, Description: "True for IPs auto-reserved by Azure (.1/.2/.3/broadcast)."},
-		"hostname":          schema.StringAttribute{Computed: true, Description: "Hostname — semantic name for the address."},
-		"description":       schema.StringAttribute{Computed: true, Description: "Free-text description."},
-	},
+var ipAddrItemFields = []itemField{
+	{"id", types.Int64Type, "IP record ID. Null for free addresses that have no stored record (IPzilon >= 3.0)."},
+	{"subnet_id", types.Int64Type, "Subnet containing this address."},
+	{"address", types.StringType, "IP address."},
+	{"status", types.StringType, "IP status: available, used, or reserved."},
+	{"is_azure_reserved", types.BoolType, "True for IPs auto-reserved by Azure (.1/.2/.3/broadcast)."},
+	{"hostname", types.StringType, "Hostname — semantic name for the address."},
+	{"description", types.StringType, "Free-text description."},
 }
 
 func (d *IPAddressesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -65,7 +63,7 @@ func (d *IPAddressesDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 			"subnet_id": schema.Int64Attribute{Optional: true, Description: "List IPs for a subnet."},
 			"status":    schema.StringAttribute{Optional: true, Description: "Filter by status: available, used, reserved. Without status the whole subnet is listed (e.g. 65,536 items for a /16, fetched in pages of 1000); set status to limit the cost."},
 			"address":   schema.StringAttribute{Optional: true, Description: "Look up one address of subnet_id, occupied or free (a free address is returned with id = null and status = available). The address is the stable way to refer to an IP: its id changes when it is released and occupied again. Requires subnet_id; cannot be combined with id or status. Fails if the address is not in the subnet."},
-			"items":     schema.ListNestedAttribute{Computed: true, NestedObject: ipAddrItemSchema, Description: "Matching IP addresses; an empty list when nothing matches (a lookup by address returns exactly one)."},
+			"items":     itemsAttribute("Matching IP addresses; an empty list when nothing matches (a lookup by address returns exactly one).", ipAddrItemFields),
 		},
 	}
 }

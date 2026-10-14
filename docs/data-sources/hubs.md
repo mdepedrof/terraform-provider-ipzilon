@@ -56,16 +56,16 @@ output "weu_hub_id" {
 
 ### Read-Only
 
-- `items` (Attributes List) Matching hubs; an empty list when nothing matches. (see [below for nested schema](#nestedatt--items))
+- `items` (List of Object) Matching hubs; an empty list when nothing matches. Each item has: `id` — Hub ID. `site_id` — ID of the site the hub belongs to. `name` — Hub name. `address_space` — Hub address space CIDR. `location` — Free-text location label. `description` — Free-text description. (see [below for nested schema](#nestedatt--items))
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`
 
 Read-Only:
 
-- `address_space` (String) Hub address space CIDR.
-- `description` (String) Free-text description.
-- `id` (Number) Hub ID.
-- `location` (String) Free-text location label.
-- `name` (String) Hub name.
-- `site_id` (Number) ID of the site the hub belongs to.
+- `address_space` (String)
+- `description` (String)
+- `id` (Number)
+- `location` (String)
+- `name` (String)
+- `site_id` (Number)

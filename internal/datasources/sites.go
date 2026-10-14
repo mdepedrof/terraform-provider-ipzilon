@@ -30,13 +30,11 @@ type siteItem struct {
 	Description types.String `tfsdk:"description"`
 }
 
-var siteItemSchema = schema.NestedAttributeObject{
-	Attributes: map[string]schema.Attribute{
-		"id":          schema.Int64Attribute{Computed: true, Description: "Site ID."},
-		"name":        schema.StringAttribute{Computed: true, Description: "Site name."},
-		"type":        schema.StringAttribute{Computed: true, Description: "Site type."},
-		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
-	},
+var siteItemFields = []itemField{
+	{"id", types.Int64Type, "Site ID."},
+	{"name", types.StringType, "Site name."},
+	{"type", types.StringType, "Site type."},
+	{"description", types.StringType, "Free-text description."},
 }
 
 func (d *SitesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -49,7 +47,7 @@ func (d *SitesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"id":    schema.Int64Attribute{Optional: true, Description: "Lookup a single site by ID."},
 			"name":  schema.StringAttribute{Optional: true, Description: "Filter sites by exact name match."},
-			"items": schema.ListNestedAttribute{Computed: true, NestedObject: siteItemSchema, Description: "Matching sites; an empty list when nothing matches."},
+			"items": itemsAttribute("Matching sites; an empty list when nothing matches.", siteItemFields),
 		},
 	}
 }

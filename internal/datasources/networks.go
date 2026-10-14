@@ -37,14 +37,12 @@ type networkItem struct {
 	Description types.String `tfsdk:"description"`
 }
 
-var networkItemSchema = schema.NestedAttributeObject{
-	Attributes: map[string]schema.Attribute{
-		"id":          schema.Int64Attribute{Computed: true, Description: "Network ID."},
-		"scope_id":    schema.Int64Attribute{Computed: true, Description: "ID of the scope the network belongs to."},
-		"name":        schema.StringAttribute{Computed: true, Description: "Network name."},
-		"cidr":        schema.StringAttribute{Computed: true, Description: "Network CIDR block."},
-		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
-	},
+var networkItemFields = []itemField{
+	{"id", types.Int64Type, "Network ID."},
+	{"scope_id", types.Int64Type, "ID of the scope the network belongs to."},
+	{"name", types.StringType, "Network name."},
+	{"cidr", types.StringType, "Network CIDR block."},
+	{"description", types.StringType, "Free-text description."},
 }
 
 func (d *NetworksDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -60,7 +58,7 @@ func (d *NetworksDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			"scope_id": schema.Int64Attribute{Optional: true, Description: "Filter: networks directly under a scope. Cannot be combined with hub_id."},
 			"cidr":     schema.StringAttribute{Optional: true, Description: "Filter: cidr match (server-side). With hub_id or scope_id it is an exact text match; without them it compares the network, so the value must be a CIDR without host bits."},
 			"name":     schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side)."},
-			"items":    schema.ListNestedAttribute{Computed: true, NestedObject: networkItemSchema, Description: "Matching networks; an empty list when nothing matches."},
+			"items":    itemsAttribute("Matching networks; an empty list when nothing matches.", networkItemFields),
 		},
 	}
 }

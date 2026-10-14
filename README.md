@@ -163,6 +163,32 @@ Also since v3.2.0, changing `site_id` of an `ipzilon_hub` moves the hub to the
 new site **in place**, keeping its id and everything under it (IPzilon >=
 3.2.0); against an older IPzilon it fails in `plan`.
 
+## Testing with mocks
+
+Since provider v3.2.2, the `items` of every listing data source can be set
+with `override_data` or `mock_data` in `terraform test` (verified with
+Terraform >= 1.16.0), so a stack that reads them can be tested without an
+IPzilon instance. Fields left out of the mock get generated values:
+
+```hcl
+# tests/hubs.tftest.hcl
+mock_provider "ipzilon" {}
+
+override_data {
+  target = data.ipzilon_hubs.regional
+  values = { items = [{ id = 1, name = "hub-weu" }] }
+}
+
+run "uses_the_regional_hub" {
+  command = plan
+
+  assert {
+    condition     = data.ipzilon_hubs.regional.items[0].id == 1
+    error_message = "unexpected hub"
+  }
+}
+```
+
 ## Compatibility
 
 | Provider | IPzilon |
@@ -312,6 +338,7 @@ make install
 
 make test        # unit tests
 make testacc     # acceptance tests (requires a live API)
+make testmock    # terraform test with mock_provider (requires terraform)
 make generate    # regenerate docs/ after schema changes
 ```
 

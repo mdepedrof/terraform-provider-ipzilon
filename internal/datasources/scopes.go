@@ -44,16 +44,14 @@ type scopeItem struct {
 	Description types.String `tfsdk:"description"`
 }
 
-var scopeItemSchema = schema.NestedAttributeObject{
-	Attributes: map[string]schema.Attribute{
-		"id":          schema.Int64Attribute{Computed: true, Description: "Scope ID."},
-		"hub_id":      schema.Int64Attribute{Computed: true, Description: "ID of the hub the scope belongs to."},
-		"parent_id":   schema.Int64Attribute{Computed: true, Description: "Parent scope ID (null for root scopes)."},
-		"name":        schema.StringAttribute{Computed: true, Description: "Scope name."},
-		"kind":        schema.StringAttribute{Computed: true, Description: "Scope kind (landing_zone or project)."},
-		"cidr":        schema.StringAttribute{Computed: true, Description: "CIDR block assigned to this scope."},
-		"description": schema.StringAttribute{Computed: true, Description: "Free-text description."},
-	},
+var scopeItemFields = []itemField{
+	{"id", types.Int64Type, "Scope ID."},
+	{"hub_id", types.Int64Type, "ID of the hub the scope belongs to."},
+	{"parent_id", types.Int64Type, "Parent scope ID (null for root scopes)."},
+	{"name", types.StringType, "Scope name."},
+	{"kind", types.StringType, "Scope kind (landing_zone or project)."},
+	{"cidr", types.StringType, "CIDR block assigned to this scope."},
+	{"description", types.StringType, "Free-text description."},
 }
 
 func (d *ScopesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -75,7 +73,7 @@ func (d *ScopesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 			},
 			"cidr":  schema.StringAttribute{Optional: true, Description: "Filter: cidr match (server-side). With hub_id it is an exact text match; without hub_id it compares the network, so the value must be a CIDR without host bits."},
 			"name":  schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side)."},
-			"items": schema.ListNestedAttribute{Computed: true, NestedObject: scopeItemSchema, Description: "Matching scopes; an empty list when nothing matches."},
+			"items": itemsAttribute("Matching scopes; an empty list when nothing matches.", scopeItemFields),
 		},
 	}
 }

@@ -43,15 +43,15 @@ output "pooled_zone_id" {
 
 ### Read-Only
 
-- `items` (Attributes List) Matching zones, ordered by CIDR. (see [below for nested schema](#nestedatt--items))
+- `items` (List of Object) Matching zones, ordered by CIDR. Each item has: `id` — Zone ID. `network_id` — Network the zone belongs to. `name` — Zone name (unique within its network). `cidr` — Zone CIDR block. `description` — Free-text description. (see [below for nested schema](#nestedatt--items))
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`
 
 Read-Only:
 
-- `cidr` (String) Zone CIDR block.
-- `description` (String) Free-text description.
-- `id` (Number) Zone ID.
-- `name` (String) Zone name (unique within its network).
-- `network_id` (Number) Network the zone belongs to.
+- `cidr` (String)
+- `description` (String)
+- `id` (Number)
+- `name` (String)
+- `network_id` (Number)

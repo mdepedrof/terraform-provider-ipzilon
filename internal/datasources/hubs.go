@@ -37,15 +37,13 @@ type hubItem struct {
 	Description  types.String `tfsdk:"description"`
 }
 
-var hubItemSchema = schema.NestedAttributeObject{
-	Attributes: map[string]schema.Attribute{
-		"id":            schema.Int64Attribute{Computed: true, Description: "Hub ID."},
-		"site_id":       schema.Int64Attribute{Computed: true, Description: "ID of the site the hub belongs to."},
-		"name":          schema.StringAttribute{Computed: true, Description: "Hub name."},
-		"address_space": schema.StringAttribute{Computed: true, Description: "Hub address space CIDR."},
-		"location":      schema.StringAttribute{Computed: true, Description: "Free-text location label."},
-		"description":   schema.StringAttribute{Computed: true, Description: "Free-text description."},
-	},
+var hubItemFields = []itemField{
+	{"id", types.Int64Type, "Hub ID."},
+	{"site_id", types.Int64Type, "ID of the site the hub belongs to."},
+	{"name", types.StringType, "Hub name."},
+	{"address_space", types.StringType, "Hub address space CIDR."},
+	{"location", types.StringType, "Free-text location label."},
+	{"description", types.StringType, "Free-text description."},
 }
 
 func (d *HubsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -60,7 +58,7 @@ func (d *HubsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 			"site_id":       schema.Int64Attribute{Optional: true, Description: "Filter: hubs of this site. Optional: without it the lookup is global (IPzilon >= 3.2.0)."},
 			"address_space": schema.StringAttribute{Optional: true, Description: "Filter: address_space match (server-side). With site_id it is an exact text match; without site_id it compares the network, so the value must be a CIDR without host bits."},
 			"name":          schema.StringAttribute{Optional: true, Description: "Filter: exact name match (server-side)."},
-			"items":         schema.ListNestedAttribute{Computed: true, NestedObject: hubItemSchema, Description: "Matching hubs; an empty list when nothing matches."},
+			"items":         itemsAttribute("Matching hubs; an empty list when nothing matches.", hubItemFields),
 		},
 	}
 }
